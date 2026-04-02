@@ -3,9 +3,9 @@
   "type": "LiquidityPool",
   "network": "stablenet-testnet",
   "chainId": 8283,
-  "proxyAddress": "0xee1d296a870be6304a438772222e1cfc37bc365f",
-  "implementationAddress": "0x6b149929cd83a29b84114fc9a777bae34e73ada3",
-  "previousProxyAddress": null,
+  "proxyAddress": "0xbe100c84e543227a07e9b018163221624ed63c03",
+  "implementationAddress": "0x9db0eda3db06cfe6b1accc0296346261bb4a638b",
+  "previousProxyAddress": "0xee1d296a870be6304a438772222e1cfc37bc365f",
   "abi": [
     {
       "inputs": [],
@@ -63,6 +63,56 @@
         {
           "indexed": true,
           "internalType": "address",
+          "name": "provider",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amountA",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amountB",
+          "type": "uint256"
+        }
+      ],
+      "name": "LiquidityAdded",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "provider",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amountA",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amountB",
+          "type": "uint256"
+        }
+      ],
+      "name": "LiquidityRemoved",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
           "name": "previousOwner",
           "type": "address"
         },
@@ -74,6 +124,37 @@
         }
       ],
       "name": "OwnershipTransferred",
+      "type": "event"
+    },
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "trader",
+          "type": "address"
+        },
+        {
+          "indexed": true,
+          "internalType": "address",
+          "name": "tokenIn",
+          "type": "address"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amountIn",
+          "type": "uint256"
+        },
+        {
+          "indexed": false,
+          "internalType": "uint256",
+          "name": "amountOut",
+          "type": "uint256"
+        }
+      ],
+      "name": "Swapped",
       "type": "event"
     },
     {
@@ -91,22 +172,17 @@
     },
     {
       "inputs": [],
-      "name": "getPoolInfo",
+      "name": "getReserves",
       "outputs": [
         {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
+          "internalType": "uint256",
+          "name": "_reserveA",
+          "type": "uint256"
         },
         {
-          "internalType": "address",
-          "name": "",
-          "type": "address"
-        },
-        {
-          "internalType": "uint24",
-          "name": "",
-          "type": "uint24"
+          "internalType": "uint256",
+          "name": "_reserveB",
+          "type": "uint256"
         }
       ],
       "stateMutability": "view",
@@ -157,6 +233,32 @@
     },
     {
       "inputs": [],
+      "name": "reserveA",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "reserveB",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
       "name": "tokenA",
       "outputs": [
         {
@@ -195,8 +297,8 @@
       "type": "function"
     }
   ],
-  "txHash": "0x7aafd50775f6f1d9ee42e5b38cc9d70141e8d501b4a3892625bc669ec72a788b",
-  "blockNumber": 5362924,
-  "deployedAt": "2026-04-01T09:18:45.469Z",
+  "txHash": "0xbfe111b895dd474db313bd7c6865c55fdb4cbbd2963da00b50ed5d730ef65f31",
+  "blockNumber": 5435788,
+  "deployedAt": "2026-04-02T05:33:11.697Z",
   "deployer": "0x069331CB8ADC2E376f0A2F8a6CDDee4f021e07cD"
 }
