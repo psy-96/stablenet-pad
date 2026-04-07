@@ -112,11 +112,12 @@ export async function POST(req: NextRequest) {
     deployer: deployerAddress,
   }
 
-  // 파일명: {contractName}_{proxyAddress 앞 8자리}.json — 재배포 시 충돌 방지
+  // 파일명: {contractName}_{proxyAddress 앞 8자리}.json, type 서브폴더로 분류
+  // 예: deployments/stablenet-testnet/ERC20/KRWToken_551ce0c4.json
   const addrSlug = proxyAddress.toLowerCase().replace(/^0x/, '').slice(0, 8)
   const artifactFileName = `${contractName}_${addrSlug}.json`
 
-  const localDir = path.join(process.cwd(), 'deployments', 'stablenet-testnet')
+  const localDir = path.join(process.cwd(), 'deployments', 'stablenet-testnet', contractType)
   await fs.promises.mkdir(localDir, { recursive: true })
   await fs.promises.writeFile(
     path.join(localDir, artifactFileName),
@@ -125,6 +126,7 @@ export async function POST(req: NextRequest) {
 
   // ─── Step 3: GitHub push ──────────────────────────────────────────────────
   const { commitUrl, error: githubError } = await pushDeploymentArtifact(
+    contractType,
     artifactFileName,
     artifact,
     isRedeploy

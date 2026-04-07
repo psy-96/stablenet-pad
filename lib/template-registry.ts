@@ -41,19 +41,19 @@ export const TEMPLATE_REGISTRY: TemplateDefinition[] = [
     useProxy: true,
     params: [
       {
-        key: 'tokenA',
+        key: '_tokenA',
         label: 'Token A',
         type: 'address-select',
         fetchUrl: '/api/deployments?type=ERC20',
       },
       {
-        key: 'tokenB',
+        key: '_tokenB',
         label: 'Token B',
         type: 'address-select',
         fetchUrl: '/api/deployments?type=ERC20',
       },
       {
-        key: 'fee',
+        key: '_fee',
         label: '수수료 (uint24)',
         type: 'uint256',
         placeholder: '예: 3000',
