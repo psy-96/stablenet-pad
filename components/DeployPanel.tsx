@@ -53,6 +53,10 @@ export default function DeployPanel({ onDeploy, isDeploying, deployerAddress }: 
 
   const selectedTemplate = TEMPLATE_REGISTRY.find((t) => t.id === selectedTemplateId) ?? null
 
+  // address-select 파라미터를 가진 템플릿(풀 타입): tokenA/tokenB 조합이 다르면 다른 컨트랙트
+  // Supabase에 params 저장 안 되므로 재배포 감지 불가 → 제외
+  const isPoolType = selectedTemplate?.params.some((p) => p.type === 'address-select') ?? false
+
   function selectTemplate(id: string) {
     setSelectedTemplateId(id)
     setTemplateParams(null)
@@ -60,8 +64,10 @@ export default function DeployPanel({ onDeploy, isDeploying, deployerAddress }: 
     setExistingDeployment(null)
   }
 
-  // 재배포 감지
+  // 재배포 감지 (풀 타입 템플릿 제외 — selectTemplate에서 이미 null로 초기화됨)
   useEffect(() => {
+    if (isPoolType) return
+
     const isTemplate = mode === 'template'
     const contractName = isTemplate
       ? selectedTemplateId
@@ -80,7 +86,7 @@ export default function DeployPanel({ onDeploy, isDeploying, deployerAddress }: 
       })
       .catch(() => { if (!cancelled) setExistingDeployment(null) })
     return () => { cancelled = true }
-  }, [mode, selectedTemplateId, file])
+  }, [isPoolType, mode, selectedTemplateId, file])
 
   function handleFile(f: File) {
     const err = validateFile(f)

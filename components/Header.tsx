@@ -22,7 +22,10 @@ export default function Header() {
   const { disconnect } = useDisconnect()
   const chainId = useChainId()
   const { switchChain } = useSwitchChain()
-  const { data: balance } = useBalance({ address })
+  const { data: balance, isError: balanceError } = useBalance({
+    address,
+    chainId: stablenetTestnet.id,
+  })
 
   const isCorrectChain = chainId === stablenetTestnet.id
   const isMetaMaskInstalled =
@@ -92,9 +95,11 @@ export default function Header() {
               <div className="flex items-center gap-2 text-sm">
                 <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />
                 <span className="text-gray-400">
-                  {balance
-                    ? `${Number(formatEther(balance.value)).toFixed(4)} WKRC`
-                    : '잔액 조회 중...'}
+                  {balanceError
+                    ? '- WKRC'
+                    : balance
+                      ? `${Number(formatEther(balance.value)).toFixed(4)} WKRC`
+                      : '조회 중...'}
                 </span>
               </div>
             )}

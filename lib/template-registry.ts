@@ -4,6 +4,10 @@ export interface TemplateParam {
   type: 'text' | 'address' | 'uint256' | 'address-select'
   /** address-select 타입일 때 옵션을 fetch할 URL (컴포넌트에서 실행) */
   fetchUrl?: string
+  /** input placeholder 텍스트 */
+  placeholder?: string
+  /** 필드 하단 설명 힌트 */
+  hint?: string
 }
 
 export interface TemplateDefinition {
@@ -48,7 +52,13 @@ export const TEMPLATE_REGISTRY: TemplateDefinition[] = [
         type: 'address-select',
         fetchUrl: '/api/deployments?type=ERC20',
       },
-      { key: 'fee', label: '수수료 (uint24)', type: 'uint256' },
+      {
+        key: 'fee',
+        label: '수수료 (uint24)',
+        type: 'uint256',
+        placeholder: '예: 3000',
+        hint: 'Uniswap V3 기준: 500 (0.05%) · 3000 (0.3%) · 10000 (1%)',
+      },
     ],
   },
   {

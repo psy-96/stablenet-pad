@@ -188,9 +188,10 @@ export default function ContractParamsForm({ params, onChange }: Props) {
                 type="text"
                 value={val}
                 onChange={(e) => setValue(p.key, e.target.value.replace(/\D/g, ''))}
-                placeholder="숫자 입력"
+                placeholder={p.placeholder ?? '숫자 입력'}
                 className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500"
               />
+              {p.hint && <p className="text-gray-500 text-xs mt-1">{p.hint}</p>}
             </div>
           )
         }
