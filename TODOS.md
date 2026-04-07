@@ -128,6 +128,36 @@ Step 1~12 전체 PASS. Definition of Done 코드 레벨 항목 전부 충족.
 
 ---
 
+## Phase 1-A QA 버그 픽스 (2026-04-07 완료)
+
+- [x] Railway production 빌드 실패: `hardhat` → `dependencies` 이동
+- [x] Hardhat sources 범위: `contracts/templates/` 만으로 제한 (`hardhat.config.ts paths.sources`)
+- [x] `ReentrancyGuardUpgradeable` OZ v5 제거됨: `SimpleVault.sol` inline guard로 대체
+- [x] artifact 경로 버그: `contractName` ≠ 내부 contract 이름 → `readdir` 탐색으로 수정
+- [x] `_tmp_` prefix: 임시 컴파일 파일이 원본 템플릿 덮어쓰는 버그 방지
+- [x] ERC20 재배포 오탐: 템플릿 모드 재배포 감지 전체 제외 (업로드 모드 전용)
+- [x] LP 파라미터 키 불일치: registry keys `_tokenA`, `_tokenB`, `_fee` (ABI 기준)
+- [x] 잔액 조회 fallback: `isError` 처리 + `chainId` 명시 + `"- WKRC"` fallback
+- [x] 수수료 필드 hint: `TemplateParam` `placeholder`/`hint` 필드 추가
+- [x] GitHub push 파일명: `{contractName}_{addr8}.json`
+- [x] GitHub push 경로: `deployments/stablenet-testnet/{type}/{name}_{addr8}.json`
+
+---
+
+## Phase 1-B 시작 전 체크리스트
+
+> 선행 조건: 아래 항목 전부 ✅ 후 `/plan-eng-review` 실행
+
+- [ ] Railway 재배포 후 QA Scene 2 — ERC20 템플릿 배포 end-to-end
+- [ ] QA Scene 3 — LiquidityPool 템플릿 배포 (ERC20 2개 선배포 후)
+- [ ] QA Scene 4 — 파일 업로드 배포 (기존 .sol 업로드)
+- [ ] GitHub `deployments/stablenet-testnet/{type}/` 경로 파일 생성 확인
+- [ ] VISION.md Phase 2에 "배포 결과 저장 경로 커스터마이징" 항목 추가
+- [ ] npx tsc --noEmit → exit 0
+- [ ] npx eslint . → exit 0
+
+---
+
 ## Phase 1-B — Generic Upload 2단계 흐름 (Phase 1-A 완료 후)
 
 > 선행 조건: Phase 1-A 완료 + 팀이 Generic Upload 수요 확인
