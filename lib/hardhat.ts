@@ -21,11 +21,13 @@ export async function compileContract(
   contractName: string
 ): Promise<CompileResult> {
   const projectRoot = process.cwd()
-  const contractsDir = path.join(projectRoot, 'contracts')
+  const contractsDir = path.join(projectRoot, 'contracts', 'templates')
 
-  // contracts/ 디렉토리에 .sol 복사 (Hardhat이 인식하는 위치)
+  // _tmp_ 접두사로 기존 템플릿 파일과 충돌 방지
+  // (예: LiquidityPool.sol 원본을 덮어쓰지 않기 위함)
+  const tmpFileName = `_tmp_${contractName}.sol`
+  const destPath = path.join(contractsDir, tmpFileName)
   await fs.promises.mkdir(contractsDir, { recursive: true })
-  const destPath = path.join(contractsDir, `${contractName}.sol`)
   await fs.promises.copyFile(contractFilePath, destPath)
 
   try {
@@ -39,16 +41,22 @@ export async function compileContract(
       throw new Error(extractHardhatError(stderr))
     }
 
-    // 컴파일 결과물 읽기
-    const artifactPath = path.join(
+    // artifact 디렉토리에서 실제 JSON 파일명을 찾음
+    // (파일명 contractName ≠ 내부 contract 이름인 경우 대응, e.g. ERC20 → ERC20Token.json)
+    const artifactDir = path.join(
       projectRoot,
       'artifacts',
       'contracts',
-      `${contractName}.sol`,
-      `${contractName}.json`
+      'templates',
+      tmpFileName,
     )
+    const files = await fs.promises.readdir(artifactDir)
+    const jsonFile = files.find((f) => f.endsWith('.json') && !f.endsWith('.dbg.json'))
+    if (!jsonFile) {
+      throw new Error(`컴파일 결과물을 찾을 수 없습니다: ${contractName}`)
+    }
 
-    const artifactRaw = await fs.promises.readFile(artifactPath, 'utf-8')
+    const artifactRaw = await fs.promises.readFile(path.join(artifactDir, jsonFile), 'utf-8')
     const artifact = JSON.parse(artifactRaw) as { abi: object[]; bytecode: string }
 
     return {
@@ -57,7 +65,7 @@ export async function compileContract(
       bytecode: artifact.bytecode,
     }
   } finally {
-    // contracts/ 임시 파일 정리 (artifacts/ 는 캐시로 유지)
+    // 임시 복사본 정리 (_tmp_ 접두사 파일만 삭제, 원본 템플릿 보존)
     await fs.promises.rm(destPath, { force: true })
   }
 }

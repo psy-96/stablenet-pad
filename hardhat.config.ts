@@ -8,6 +8,9 @@ const config: HardhatUserConfig = {
       { version: '0.8.24' },
     ],
   },
+  paths: {
+    sources: './contracts/templates', // examples/ 제외 — 데모 파일은 컴파일 대상 아님
+  },
   networks: {
     'stablenet-testnet': {
       url: process.env.NEXT_PUBLIC_STABLENET_RPC || 'https://api.test.stablenet.network',
