@@ -1,4 +1,5 @@
-export type ContractType = 'ERC20' | 'LiquidityPool'
+// Phase 1-A: ContractType을 string으로 완화 (registry id 또는 컨트랙트 파일명)
+export type ContractType = string
 
 export type SSEEventType = 'compiling' | 'compiled' | 'error' | 'saving' | 'done'
 
@@ -22,12 +23,13 @@ export interface LiquidityPoolParams {
   fee: string     // uint24, BigInt 변환은 배포 직전에 수행
 }
 
-export type ContractParams = ERC20Params | LiquidityPoolParams
+// Phase 1-A: registry 기반 범용 파라미터 맵
+export type ContractParams = Record<string, string>
 
 export interface DeploymentResult {
   id: string
   contractName: string
-  type: ContractType
+  type: string
   proxyAddress: string | null
   implementationAddress: string | null
   previousProxyAddress: string | null
@@ -43,7 +45,7 @@ export interface DeploymentResult {
 
 export interface DeploymentArtifact {
   contractName: string
-  type: ContractType
+  type: string
   network: string
   chainId: number
   proxyAddress: string | null
@@ -64,7 +66,7 @@ export interface UploadResponse {
 
 // POST /api/deploy 요청
 export interface DeployRequest {
-  contractType: ContractType
+  contractType: string
   fileName: string
   tempPath: string
   deploymentId: string
@@ -82,14 +84,13 @@ export interface DeployResponse {
 }
 
 // POST /api/deploy/confirm 요청
-// txHash만 넘기면 서버가 waitForTransactionReceipt로 proxyAddress/blockNumber를 직접 추출
 export interface ConfirmRequest {
   deploymentId: string
   contractName: string
-  contractType: ContractType
-  txHash: string            // 최종 tx (proxy 배포 또는 단순 배포)
-  implTxHash?: string | null  // Proxy 배포 시: Implementation tx hash
-  implAddress?: string | null  // Proxy 배포 시: Implementation 컨트랙트 주소
+  contractType: string
+  txHash: string
+  implTxHash?: string | null
+  implAddress?: string | null
   deployerAddress: string
   abi: object[]
 }

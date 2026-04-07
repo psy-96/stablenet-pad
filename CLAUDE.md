@@ -84,6 +84,23 @@ SUPABASE_SERVICE_ROLE_KEY=...
 
 ---
 
+## Phase 1 설계 결정 (2026-04-07)
+
+| 항목 | 결정 |
+|---|---|
+| 템플릿 관리 | `lib/template-registry.ts` 중앙 집중 — 새 템플릿은 registry에만 추가 |
+| Generic 배포 UX | 업로드 → 컴파일 미리보기 → 파라미터 입력 → 배포 (2단계) |
+| Proxy 감지 | ABI에서 `initialize()` 존재 시 경고 표시, 토글은 사용자가 직접 제어 |
+| `contractType` 타입 | `string`으로 확장 — 템플릿은 registry id, Generic은 컨트랙트 파일명 |
+| Supabase `type` 컬럼 | check constraint DROP — 앱 레벨 registry 조회로 검증 대체 |
+| 개발 순서 | Phase 1-A (Template Registry + Catalog) → Phase 1-B (Generic Upload) |
+| 테스트 프레임워크 | Vitest + `@vitejs/plugin-react` + jsdom |
+| `ContractParamsForm` props | `contractType` 대신 `TemplateParam[]` 수신 (Phase 1-A 리팩터링 시) |
+| `encodeInitData` | contractType switch 제거 → ABI input.type 기반 동적 인코딩 |
+| address-select 옵션 로딩 | registry에 `fetchUrl` 문자열만 정의, 실제 fetch는 컴포넌트에서 |
+
+---
+
 ## 예외 처리 원칙
 | 상황 | 처리 |
 |---|---|

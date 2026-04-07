@@ -4,6 +4,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import path from 'path'
 import { compileContract } from '@/lib/hardhat'
 import { emitSSE } from '@/lib/sse-emitter'
+import { getTemplateById } from '@/lib/template-registry'
 import type { DeployRequest } from '@/types'
 
 // ABI + bytecode를 deploymentId별로 메모리에 보관 (Phase 1 → Phase 2/3 연결용)
@@ -28,17 +29,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: '배포 주소가 필요합니다' }, { status: 400 })
   }
 
-  // 파라미터 타입별 유효성 검사
-  if (contractType === 'ERC20') {
-    const p = params as { name: string; symbol: string; initialSupply: string }
-    if (!p.name || !p.symbol || !p.initialSupply) {
-      return NextResponse.json({ error: 'ERC20 파라미터가 부족합니다' }, { status: 400 })
-    }
-  } else {
-    const p = params as { tokenA: string; tokenB: string; fee: string }
-    if (!p.tokenA || !p.tokenB || p.tokenA === p.tokenB) {
+  // registry 기반 파라미터 유효성 검사 (템플릿 배포인 경우만)
+  const template = getTemplateById(contractType)
+  if (template) {
+    const missingKey = template.params.find((p) => !params[p.key])?.key
+    if (missingKey) {
       return NextResponse.json(
-        { error: 'tokenA와 tokenB는 서로 다른 주소여야 합니다' },
+        { error: `필수 파라미터가 누락되었습니다: ${missingKey}` },
         { status: 400 }
       )
     }

@@ -1,8 +1,10 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
-import type { ContractType, ContractParams, DeploymentResult } from '@/types'
+import type { ContractParams, DeploymentResult } from '@/types'
+import { TEMPLATE_REGISTRY } from '@/lib/template-registry'
 import ContractParamsForm from './ContractParamsForm'
+import TemplateCatalog from './TemplateCatalog'
 
 const MAX_FILE_SIZE = 1024 * 1024 // 1MB
 
@@ -12,10 +14,12 @@ function validateFile(f: File): string | null {
   return null
 }
 
+type DeployMode = 'template' | 'upload'
+
 interface Props {
   onDeploy: (params: {
     file: File | null
-    contractType: ContractType
+    contractType: string
     params: ContractParams
     useProxy: boolean
   }) => void
@@ -24,26 +28,48 @@ interface Props {
 }
 
 export default function DeployPanel({ onDeploy, isDeploying, deployerAddress }: Props) {
+  const [mode, setMode] = useState<DeployMode>('template')
+
+  // 템플릿 모드
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
+    TEMPLATE_REGISTRY[0]?.id ?? null
+  )
+  const [templateParams, setTemplateParams] = useState<ContractParams | null>(null)
+  const [templateParamsValid, setTemplateParamsValid] = useState(false)
+  const [templateUseProxy, setTemplateUseProxy] = useState(true)
+
+  // 업로드 모드
   const [file, setFile] = useState<File | null>(null)
   const [fileError, setFileError] = useState<string | null>(null)
   const [isDragging, setIsDragging] = useState(false)
-  const [contractType, setContractType] = useState<ContractType>('ERC20')
-  const [useProxy, setUseProxy] = useState(true)
-  const [formParams, setFormParams] = useState<ContractParams | null>(null)
-  const [formValid, setFormValid] = useState(false)
+  const [uploadParams, setUploadParams] = useState<ContractParams | null>(null)
+  const [uploadParamsValid, setUploadParamsValid] = useState(false)
+  const [uploadUseProxy, setUploadUseProxy] = useState(true)
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // 재배포 감지
   const [existingDeployment, setExistingDeployment] = useState<DeploymentResult | null>(null)
   const [showRedeployModal, setShowRedeployModal] = useState(false)
 
-  // 파일 선택 또는 LP 탭 전환 시 동일 컨트랙트명 기존 배포 확인
+  const selectedTemplate = TEMPLATE_REGISTRY.find((t) => t.id === selectedTemplateId) ?? null
+
+  function selectTemplate(id: string) {
+    setSelectedTemplateId(id)
+    setTemplateParams(null)
+    setTemplateParamsValid(false)
+    setExistingDeployment(null)
+  }
+
+  // 재배포 감지
   useEffect(() => {
-    const isLP = contractType === 'LiquidityPool'
-    if (!isLP && !file) return
-    const contractName = isLP ? 'LiquidityPool' : file!.name.replace(/\.sol$/, '')
+    const isTemplate = mode === 'template'
+    const contractName = isTemplate
+      ? selectedTemplateId
+      : file?.name.replace(/\.sol$/, '') ?? null
+    if (!contractName) return
+
     let cancelled = false
-    fetch(`/api/deployments?type=${contractType}`)
+    fetch(`/api/deployments`)
       .then((r) => r.json())
       .then((data: { deployments: DeploymentResult[] }) => {
         if (cancelled) return
@@ -54,70 +80,106 @@ export default function DeployPanel({ onDeploy, isDeploying, deployerAddress }: 
       })
       .catch(() => { if (!cancelled) setExistingDeployment(null) })
     return () => { cancelled = true }
-  }, [file, contractType])
+  }, [mode, selectedTemplateId, file])
 
   function handleFile(f: File) {
     const err = validateFile(f)
     setFileError(err)
-    if (!err) {
-      setFile(f)
-    } else {
-      setFile(null)
-      setExistingDeployment(null)
-    }
-  }
-
-  function handleInputChange(e: React.ChangeEvent<HTMLInputElement>) {
-    if (e.target.files?.[0]) handleFile(e.target.files[0])
+    setFile(err ? null : f)
+    if (err) setExistingDeployment(null)
   }
 
   const handleDrop = useCallback((e: React.DragEvent<HTMLDivElement>) => {
     e.preventDefault()
     setIsDragging(false)
-    if (e.dataTransfer.files?.[0]) {
-      const f = e.dataTransfer.files[0]
-      const err = validateFile(f)
-      setFileError(err)
-      if (!err) setFile(f)
-      else setFile(null)
-    }
+    if (e.dataTransfer.files?.[0]) handleFile(e.dataTransfer.files[0])
   }, [])
 
-  const isLP = contractType === 'LiquidityPool'
+  function switchMode(m: DeployMode) {
+    setMode(m)
+    setExistingDeployment(null)
+    setShowRedeployModal(false)
+  }
+
+  // 현재 모드 기준 deploy 가능 여부
+  const isTemplate = mode === 'template'
+  const formValid = isTemplate ? templateParamsValid : uploadParamsValid
+  const formParams = isTemplate ? templateParams : uploadParams
+  const useProxy = isTemplate ? templateUseProxy : uploadUseProxy
+  const contractType = isTemplate
+    ? (selectedTemplateId ?? '')
+    : (file?.name.replace(/\.sol$/, '') ?? '')
+
+  const canDeploy = Boolean(
+    formParams && formValid && deployerAddress && !isDeploying &&
+    (isTemplate ? selectedTemplateId : file)
+  )
 
   function handleSubmit() {
-    if ((!isLP && !file) || !formParams || !formValid || !deployerAddress || isDeploying) return
-    // 기존 배포가 있으면 확인 모달 표시
-    if (existingDeployment) {
-      setShowRedeployModal(true)
-      return
-    }
-    onDeploy({ file: file ?? null, contractType, params: formParams, useProxy })
+    if (!canDeploy || !formParams) return
+    if (existingDeployment) { setShowRedeployModal(true); return }
+    onDeploy({ file: isTemplate ? null : file, contractType, params: formParams, useProxy })
   }
 
   function confirmRedeploy() {
     setShowRedeployModal(false)
     if (!formParams) return
-    onDeploy({ file: file ?? null, contractType, params: formParams, useProxy })
+    onDeploy({ file: isTemplate ? null : file, contractType, params: formParams, useProxy })
   }
-
-  const canDeploy = Boolean(
-    (isLP || file) && formParams && formValid && deployerAddress && !isDeploying
-  )
 
   return (
     <div className="flex flex-col gap-4">
       <h2 className="text-sm font-medium text-gray-400">배포 패널</h2>
 
-      {/* 파일 업로드 (ERC20 전용) / LP 템플릿 배지 */}
-      {isLP ? (
-        <div className="border border-blue-800 bg-blue-900/10 rounded-lg p-4 text-center">
-          <p className="text-sm text-blue-400 font-medium">LiquidityPool 표준 템플릿 사용</p>
-          <p className="text-xs text-gray-500 mt-1">
-            별도 파일 업로드 불필요 — 서버 번들 템플릿으로 자동 컴파일됩니다
-          </p>
-        </div>
-      ) : (
+      {/* 모드 탭 */}
+      <div className="flex gap-2">
+        {(['template', 'upload'] as DeployMode[]).map((m) => (
+          <button
+            key={m}
+            onClick={() => switchMode(m)}
+            className={`
+              flex-1 py-2 text-sm rounded-lg border transition-colors
+              ${mode === m
+                ? 'bg-blue-600 border-blue-500 text-white'
+                : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'}
+            `}
+          >
+            {m === 'template' ? '템플릿 선택' : '파일 업로드'}
+          </button>
+        ))}
+      </div>
+
+      {/* 템플릿 모드 */}
+      {isTemplate && (
+        <>
+          <TemplateCatalog
+            templates={TEMPLATE_REGISTRY}
+            selectedId={selectedTemplateId}
+            onSelect={selectTemplate}
+          />
+          {selectedTemplate && (
+            <ContractParamsForm
+              params={selectedTemplate.params}
+              onChange={(p, v) => { setTemplateParams(p); setTemplateParamsValid(v) }}
+            />
+          )}
+          <label className="flex items-center gap-3 cursor-pointer">
+            <div
+              onClick={() => setTemplateUseProxy(!templateUseProxy)}
+              className={`relative w-10 h-5 rounded-full transition-colors ${templateUseProxy ? 'bg-blue-600' : 'bg-gray-700'}`}
+            >
+              <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${templateUseProxy ? 'translate-x-5' : 'translate-x-0.5'}`} />
+            </div>
+            <span className="text-sm text-gray-300">
+              Proxy 패턴 {templateUseProxy ? 'ON' : 'OFF'}
+              <span className="text-gray-500 ml-1">({templateUseProxy ? '2 트랜잭션' : '1 트랜잭션'})</span>
+            </span>
+          </label>
+        </>
+      )}
+
+      {/* 업로드 모드 */}
+      {!isTemplate && (
         <>
           <div
             onDragOver={(e) => { e.preventDefault(); setIsDragging(true) }}
@@ -135,7 +197,7 @@ export default function DeployPanel({ onDeploy, isDeploying, deployerAddress }: 
               type="file"
               accept=".sol"
               className="hidden"
-              onChange={handleInputChange}
+              onChange={(e) => { if (e.target.files?.[0]) handleFile(e.target.files[0]) }}
             />
             {file ? (
               <div className="text-sm">
@@ -149,85 +211,45 @@ export default function DeployPanel({ onDeploy, isDeploying, deployerAddress }: 
               </div>
             )}
           </div>
+          {fileError && <p className="text-red-400 text-xs">{fileError}</p>}
 
-          {fileError && (
-            <p className="text-red-400 text-xs">{fileError}</p>
+          {file && (
+            <ContractParamsForm
+              params={[]}
+              onChange={(p, v) => { setUploadParams(p); setUploadParamsValid(v) }}
+            />
           )}
+
+          <label className="flex items-center gap-3 cursor-pointer">
+            <div
+              onClick={() => setUploadUseProxy(!uploadUseProxy)}
+              className={`relative w-10 h-5 rounded-full transition-colors ${uploadUseProxy ? 'bg-blue-600' : 'bg-gray-700'}`}
+            >
+              <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${uploadUseProxy ? 'translate-x-5' : 'translate-x-0.5'}`} />
+            </div>
+            <span className="text-sm text-gray-300">
+              Proxy 패턴 {uploadUseProxy ? 'ON' : 'OFF'}
+              <span className="text-gray-500 ml-1">({uploadUseProxy ? '2 트랜잭션' : '1 트랜잭션'})</span>
+            </span>
+          </label>
         </>
       )}
 
       {/* 재배포 감지 배너 */}
-      {existingDeployment && !fileError && (
+      {existingDeployment && (
         <div className="bg-orange-900/20 border border-orange-800 rounded-lg p-3 text-xs text-orange-400">
           <p className="font-medium mb-1">재배포 감지</p>
-          <p className="text-orange-500">
-            {existingDeployment.contractName}이 이미 배포되어 있습니다.
-          </p>
+          <p className="text-orange-500">{existingDeployment.contractName}이 이미 배포되어 있습니다.</p>
           <p className="text-gray-600 font-mono mt-1 break-all">
             현재: {existingDeployment.proxyAddress ?? existingDeployment.implementationAddress ?? '-'}
           </p>
         </div>
       )}
 
-      {/* 컨트랙트 유형 선택 */}
-      <div className="flex gap-2">
-        {(['ERC20', 'LiquidityPool'] as ContractType[]).map((type) => (
-          <button
-            key={type}
-            onClick={() => {
-              setContractType(type)
-              setFormParams(null)
-              setFormValid(false)
-              setFile(null)
-              setFileError(null)
-              setExistingDeployment(null)
-            }}
-            className={`
-              flex-1 py-2 text-sm rounded-lg border transition-colors
-              ${contractType === type
-                ? 'bg-blue-600 border-blue-500 text-white'
-                : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'}
-            `}
-          >
-            {type}
-          </button>
-        ))}
-      </div>
-
-      {/* Proxy 토글 */}
-      <label className="flex items-center gap-3 cursor-pointer">
-        <div
-          onClick={() => setUseProxy(!useProxy)}
-          className={`
-            relative w-10 h-5 rounded-full transition-colors
-            ${useProxy ? 'bg-blue-600' : 'bg-gray-700'}
-          `}
-        >
-          <div className={`
-            absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform
-            ${useProxy ? 'translate-x-5' : 'translate-x-0.5'}
-          `} />
-        </div>
-        <span className="text-sm text-gray-300">
-          Proxy 패턴 {useProxy ? 'ON' : 'OFF'}
-          <span className="text-gray-500 ml-1">({useProxy ? '2 트랜잭션' : '1 트랜잭션'})</span>
-        </span>
-      </label>
-
-      {/* 파라미터 폼 */}
-      <ContractParamsForm
-        contractType={contractType}
-        onChange={(params, valid) => { setFormParams(params); setFormValid(valid) }}
-      />
-
-      {/* 지갑 미연결 경고 */}
       {!deployerAddress && (
-        <p className="text-yellow-500 text-xs text-center">
-          MetaMask를 연결해야 배포할 수 있습니다
-        </p>
+        <p className="text-yellow-500 text-xs text-center">MetaMask를 연결해야 배포할 수 있습니다</p>
       )}
 
-      {/* 배포 버튼 */}
       <button
         onClick={handleSubmit}
         disabled={!canDeploy}
@@ -252,7 +274,6 @@ export default function DeployPanel({ onDeploy, isDeploying, deployerAddress }: 
               <span className="text-orange-400 font-medium">{existingDeployment.contractName}</span>이
               이미 배포되어 있습니다. 새 주소로 덮어쓰겠습니까?
             </p>
-
             <div className="bg-gray-800 rounded-lg p-3 text-xs font-mono space-y-1 mb-4">
               <div>
                 <span className="text-gray-500">기존 주소: </span>
@@ -267,11 +288,9 @@ export default function DeployPanel({ onDeploy, isDeploying, deployerAddress }: 
                 </span>
               </div>
             </div>
-
             <p className="text-gray-600 text-xs mb-5">
               기존 주소는 <code>previousProxyAddress</code>로 보존됩니다.
             </p>
-
             <div className="flex gap-3">
               <button
                 onClick={() => setShowRedeployModal(false)}

@@ -1,0 +1,77 @@
+import { describe, it, expect } from 'vitest'
+import {
+  TEMPLATE_REGISTRY,
+  getTemplateById,
+  type TemplateDefinition,
+  type TemplateParam,
+} from '@/lib/template-registry'
+
+describe('TEMPLATE_REGISTRY', () => {
+  it('has at least ERC20 and LiquidityPool', () => {
+    const ids = TEMPLATE_REGISTRY.map((t) => t.id)
+    expect(ids).toContain('ERC20')
+    expect(ids).toContain('LiquidityPool')
+  })
+
+  it('every entry has required fields', () => {
+    for (const t of TEMPLATE_REGISTRY) {
+      expect(typeof t.id).toBe('string')
+      expect(typeof t.label).toBe('string')
+      expect(typeof t.solFile).toBe('string')
+      expect(t.solFile.endsWith('.sol')).toBe(true)
+      expect(Array.isArray(t.params)).toBe(true)
+      expect(typeof t.useProxy).toBe('boolean')
+    }
+  })
+
+  it('ERC20 has name, symbol, initialSupply params', () => {
+    const erc20 = TEMPLATE_REGISTRY.find((t) => t.id === 'ERC20')!
+    const keys = erc20.params.map((p: TemplateParam) => p.key)
+    expect(keys).toContain('name')
+    expect(keys).toContain('symbol')
+    expect(keys).toContain('initialSupply')
+  })
+
+  it('LiquidityPool has tokenA, tokenB, fee params', () => {
+    const lp = TEMPLATE_REGISTRY.find((t) => t.id === 'LiquidityPool')!
+    const keys = lp.params.map((p: TemplateParam) => p.key)
+    expect(keys).toContain('tokenA')
+    expect(keys).toContain('tokenB')
+    expect(keys).toContain('fee')
+  })
+
+  it('LiquidityPool address-select params have fetchUrl', () => {
+    const lp = TEMPLATE_REGISTRY.find((t) => t.id === 'LiquidityPool')!
+    const selectParams = lp.params.filter((p: TemplateParam) => p.type === 'address-select')
+    expect(selectParams.length).toBeGreaterThanOrEqual(2)
+    for (const p of selectParams) {
+      expect(typeof p.fetchUrl).toBe('string')
+      expect(p.fetchUrl!.length).toBeGreaterThan(0)
+    }
+  })
+
+  it('all param types are valid', () => {
+    const validTypes = new Set(['text', 'address', 'uint256', 'address-select'])
+    for (const t of TEMPLATE_REGISTRY) {
+      for (const p of t.params) {
+        expect(validTypes.has(p.type), `${t.id}.${p.key} has invalid type: ${p.type}`).toBe(true)
+      }
+    }
+  })
+})
+
+describe('getTemplateById', () => {
+  it('returns template for known id', () => {
+    const t = getTemplateById('ERC20')
+    expect(t).toBeDefined()
+    expect((t as TemplateDefinition).id).toBe('ERC20')
+  })
+
+  it('returns undefined for unknown id', () => {
+    expect(getTemplateById('NonExistent')).toBeUndefined()
+  })
+
+  it('returns undefined for empty string', () => {
+    expect(getTemplateById('')).toBeUndefined()
+  })
+})

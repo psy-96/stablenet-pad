@@ -5,28 +5,28 @@ import { randomUUID } from 'crypto'
 import os from 'os'
 import path from 'path'
 import fs from 'fs'
-
-const ALLOWED_TYPES = ['LiquidityPool'] as const
-type AllowedType = (typeof ALLOWED_TYPES)[number]
-
-const TEMPLATE_MAP: Record<AllowedType, string> = {
-  LiquidityPool: path.join(process.cwd(), 'contracts', 'templates', 'LiquidityPool.sol'),
-}
+import { getTemplateById } from '@/lib/template-registry'
 
 export async function GET(req: NextRequest) {
   const type = req.nextUrl.searchParams.get('type')
 
-  if (!type || !(ALLOWED_TYPES as readonly string[]).includes(type)) {
+  if (!type) {
+    return NextResponse.json({ error: '템플릿 유형을 지정해주세요' }, { status: 400 })
+  }
+
+  const template = getTemplateById(type)
+
+  if (!template) {
     return NextResponse.json({ error: '지원하지 않는 템플릿 유형입니다' }, { status: 400 })
   }
 
-  const templatePath = TEMPLATE_MAP[type as AllowedType]
+  const templatePath = path.resolve(process.cwd(), template.solFile)
 
   try {
     await fs.promises.access(templatePath, fs.constants.R_OK)
   } catch {
     return NextResponse.json(
-      { error: '서버 LiquidityPool 템플릿을 찾을 수 없습니다' },
+      { error: `${type} 템플릿 파일을 서버에서 찾을 수 없습니다` },
       { status: 500 }
     )
   }

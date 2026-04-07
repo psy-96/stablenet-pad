@@ -7,11 +7,10 @@ import {
 } from 'wagmi'
 import { encodeDeployData, encodeFunctionData, type Abi, type AbiFunction, type Hash } from 'viem'
 import { erc1967ProxyAbi, erc1967ProxyBytecode } from '@/lib/erc1967proxy'
+import { getTemplateById } from '@/lib/template-registry'
 import type {
   ContractType,
   ContractParams,
-  ERC20Params,
-  LiquidityPoolParams,
   ConfirmRequest,
 } from '@/types'
 
@@ -88,9 +87,10 @@ export function useDeploy(): UseDeployResult {
         let deploymentId: string
         let fileName: string
 
-        if (contractType === 'LiquidityPool') {
-          addLog('LiquidityPool 템플릿 로드 중...')
-          const templateRes = await fetch('/api/template?type=LiquidityPool')
+        const template = getTemplateById(contractType)
+        if (template) {
+          addLog(`${template.label} 템플릿 로드 중...`)
+          const templateRes = await fetch(`/api/template?type=${contractType}`)
           if (!templateRes.ok) {
             const err = (await templateRes.json()) as { error: string }
             throw new Error(err.error)
@@ -101,7 +101,7 @@ export function useDeploy(): UseDeployResult {
           }
           tempPath = templateData.tempPath
           deploymentId = templateData.deploymentId
-          fileName = 'LiquidityPool.sol'
+          fileName = `${contractType}.sol`
         } else {
           if (!file) throw new Error('파일이 필요합니다')
           addLog('서버에 파일 업로드 중...')
@@ -197,7 +197,7 @@ export function useDeploy(): UseDeployResult {
           addLog(`Implementation 배포 완료: ${implAddress}`, 'success')
 
           // initData: initialize() 호출 인코딩
-          const initData = encodeInitData(abi, contractType, params)
+          const initData = encodeInitData(abi, params)
 
           // Tx 2: Proxy 배포
           const proxyData = encodeDeployData({
@@ -224,8 +224,9 @@ export function useDeploy(): UseDeployResult {
         // ── Phase 3: 서버 저장 ────────────────────────────────────────
         addLog('결과물 저장 중...')
 
-        const contractName =
-          contractType === 'LiquidityPool' ? 'LiquidityPool' : file!.name.replace(/\.sol$/, '')
+        const contractName = template
+          ? contractType
+          : file!.name.replace(/\.sol$/, '')
         const confirmBody: ConfirmRequest = {
           deploymentId,
           contractName,
@@ -313,17 +314,14 @@ export function useDeploy(): UseDeployResult {
 
 // ─── 헬퍼 ─────────────────────────────────────────────────────────────────
 
+// OZ Upgradeable 패턴: constructor는 항상 비어 있음
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
-function buildConstructorArgs(contractType: ContractType, _params: ContractParams): unknown[] {
-  if (contractType === 'ERC20') {
-    // OZ ERC20Upgradeable: constructor()는 비어 있음. initialize()는 Proxy initData에서 처리.
-    return []
-  }
-  // LiquidityPool: 마찬가지로 initialize 패턴이면 []
+function buildConstructorArgs(_contractType: ContractType, _params: ContractParams): unknown[] {
   return []
 }
 
-function encodeInitData(abi: Abi, contractType: ContractType, params: ContractParams): `0x${string}` {
+// ABI input.type 기반 동적 인코딩 — contractType switch 없음
+function encodeInitData(abi: Abi, params: ContractParams): `0x${string}` {
   const initFn = abi.find(
     (item): item is AbiFunction => item.type === 'function' && item.name === 'initialize'
   )
@@ -334,26 +332,23 @@ function encodeInitData(abi: Abi, contractType: ContractType, params: ContractPa
     )
   }
 
-  if (contractType === 'ERC20') {
-    const p = params as ERC20Params
-    const expectedInputs = 3 // name, symbol, initialSupply
-    if (initFn.inputs.length < expectedInputs) {
-      throw new Error(
-        `ERC20 initialize() 파라미터 수 불일치: 예상 ${expectedInputs}개, 실제 ${initFn.inputs.length}개`
-      )
+  const args = initFn.inputs.map((input) => {
+    const key = input.name ?? ''
+    const val = params[key]
+    if (val === undefined || val === '') {
+      throw new Error(`initialize() 파라미터 누락: ${key}`)
     }
-    return encodeFunctionData({
-      abi,
-      functionName: 'initialize',
-      args: [p.name, p.symbol, BigInt(p.initialSupply)],
-    })
-  }
-
-  // LiquidityPool
-  const p = params as LiquidityPoolParams
-  return encodeFunctionData({
-    abi,
-    functionName: 'initialize',
-    args: [p.tokenA, p.tokenB, BigInt(p.fee)],
+    const t = input.type
+    if (t === 'uint256' || t === 'uint24' || t === 'uint8') {
+      return BigInt(val)
+    }
+    if (t === 'string' || t === 'address') {
+      return val
+    }
+    throw new Error(
+      `지원하지 않는 파라미터 타입: ${t} (지원 타입: string, address, uint256, uint24, uint8)`
+    )
   })
+
+  return encodeFunctionData({ abi, functionName: 'initialize', args })
 }
