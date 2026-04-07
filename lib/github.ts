@@ -10,7 +10,7 @@ const GITHUB_API = 'https://api.github.com'
  * 파일이 이미 존재하면 sha를 가져와 업데이트(덮어쓰기)한다.
  */
 export async function pushDeploymentArtifact(
-  contractName: string,
+  fileName: string,
   content: object,
   isRedeploy: boolean
 ): Promise<GitHubPushResult> {
@@ -22,7 +22,7 @@ export async function pushDeploymentArtifact(
     return { commitUrl: null, error: 'GitHub 환경변수가 설정되지 않았습니다' }
   }
 
-  const filePath = `deployments/stablenet-testnet/${contractName}.json`
+  const filePath = `deployments/stablenet-testnet/${fileName}`
   const apiUrl = `${GITHUB_API}/repos/${owner}/${repo}/contents/${filePath}`
   const headers = {
     Authorization: `Bearer ${token}`,
@@ -44,8 +44,8 @@ export async function pushDeploymentArtifact(
   }
 
   const commitMessage = isRedeploy
-    ? `redeploy: ${contractName} to stablenet-testnet`
-    : `deploy: ${contractName} to stablenet-testnet`
+    ? `redeploy: ${fileName} to stablenet-testnet`
+    : `deploy: ${fileName} to stablenet-testnet`
 
   const body: Record<string, string> = {
     message: commitMessage,

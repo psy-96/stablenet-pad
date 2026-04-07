@@ -112,16 +112,20 @@ export async function POST(req: NextRequest) {
     deployer: deployerAddress,
   }
 
+  // 파일명: {contractName}_{proxyAddress 앞 8자리}.json — 재배포 시 충돌 방지
+  const addrSlug = proxyAddress.toLowerCase().replace(/^0x/, '').slice(0, 8)
+  const artifactFileName = `${contractName}_${addrSlug}.json`
+
   const localDir = path.join(process.cwd(), 'deployments', 'stablenet-testnet')
   await fs.promises.mkdir(localDir, { recursive: true })
   await fs.promises.writeFile(
-    path.join(localDir, `${contractName}.json`),
+    path.join(localDir, artifactFileName),
     JSON.stringify(artifact, null, 2)
   )
 
   // ─── Step 3: GitHub push ──────────────────────────────────────────────────
   const { commitUrl, error: githubError } = await pushDeploymentArtifact(
-    contractName,
+    artifactFileName,
     artifact,
     isRedeploy
   )
