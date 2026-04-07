@@ -155,4 +155,7 @@ Step 1~12 전체 PASS. Definition of Done 코드 레벨 항목 전부 충족.
 
 - Hardhat compile: 15-30s (첫 실행, OZ imports), ~3s (캐시)
 - GitHub PUT: sha GET 1회 추가 (~100ms), PoC에서 허용
-- address-select: 동일 fetchUrl 중복 요청 방지 (useEffect에서 Map으로 dedup)
+- address-select: 동일 fetchUrl 중복 요청 방지 (fetchedUrls ref로 dedup)
+- Railway 배포: https://stablenet-pad-production.up.railway.app
+  - main push → 자동 재배포 (빌드 ~2-3분)
+  - NODE_TLS_REJECT_UNAUTHORIZED=0 설정됨 (StableNet RPC TLS 우회)

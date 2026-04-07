@@ -6,6 +6,16 @@
 
 ---
 
+## 배포 환경
+| 항목 | 값 |
+|---|---|
+| 플랫폼 | Railway |
+| 프로덕션 URL | https://stablenet-pad-production.up.railway.app |
+| 배포 트리거 | GitHub `main` push → 자동 재배포 |
+| 특이사항 | `NODE_TLS_REJECT_UNAUTHORIZED=0` Railway 환경변수에 설정됨 (StableNet RPC TLS 우회) |
+
+---
+
 ## 기술 스택
 | 레이어 | 기술 |
 |---|---|
@@ -29,7 +39,7 @@
 
 ---
 
-## 환경변수 (.env.local)
+## 환경변수 (.env.local / Railway)
 ```
 NEXT_PUBLIC_CHAIN_ID=8283
 NEXT_PUBLIC_RPC_URL=https://api.test.stablenet.network
@@ -40,6 +50,7 @@ GITHUB_REPO=stablenet-pad
 NEXT_PUBLIC_SUPABASE_URL=...
 NEXT_PUBLIC_SUPABASE_ANON_KEY=...
 SUPABASE_SERVICE_ROLE_KEY=...
+NODE_TLS_REJECT_UNAUTHORIZED=0   # Railway 전용 — 로컬 .env.local에는 추가하지 말 것
 ```
 
 ---
@@ -81,6 +92,15 @@ SUPABASE_SERVICE_ROLE_KEY=...
 - `artifacts/`, `contracts/`, `.env.local` GitHub 커밋 금지
 - `console.log` 프로덕션 코드에 잔존 금지
 - 공통 타입을 `types/index.ts` 외 분산 정의 금지
+
+---
+
+## 진행 현황 (2026-04-07)
+| 단계 | 상태 |
+|---|---|
+| MVP (ERC20 + LiquidityPool 배포 대시보드) | ✅ 완료 |
+| Phase 1-A (Template Registry + TemplateCatalog + ContractParamsForm 리팩터링) | ✅ 완료 |
+| Phase 1-B (Generic Upload 2단계 흐름) | ⏳ 대기 중 |
 
 ---
 
