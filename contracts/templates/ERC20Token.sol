@@ -19,7 +19,6 @@ contract ERC20Token is Initializable, ERC20Upgradeable, OwnableUpgradeable, UUPS
     ) public initializer {
         __ERC20_init(name, symbol);
         __Ownable_init(msg.sender);
-        __UUPSUpgradeable_init();
         _mint(msg.sender, initialSupply);
     }
 

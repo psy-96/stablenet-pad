@@ -33,7 +33,6 @@ contract LiquidityPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
     function initialize(address _tokenA, address _tokenB, uint24 _fee) public initializer {
         __Ownable_init(msg.sender);
-        __UUPSUpgradeable_init();
         require(_tokenA != address(0) && _tokenB != address(0), "LiquidityPool: invalid token address");
         require(_tokenA != _tokenB, "LiquidityPool: identical tokens");
         tokenA = _tokenA;

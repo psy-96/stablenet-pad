@@ -20,7 +20,6 @@ contract SimpleVault is Initializable, OwnableUpgradeable, UUPSUpgradeable {
 
     function initialize(address owner_) public initializer {
         __Ownable_init(owner_);
-        __UUPSUpgradeable_init();
     }
 
     receive() external payable {
