@@ -268,16 +268,12 @@ export default function GenericDeploySection({ onDeploy, isDeploying, deployerAd
       {(state === 'params' || state === 'deploying' || state === 'done') && paramsResult && (
         <>
           <div className="flex items-center gap-2 text-xs text-gray-500">
-            {state === 'params' ? (
-              <button
-                onClick={resetToUpload}
-                className="text-blue-400 hover:text-blue-300 transition-colors"
-              >
-                ← 파일 다시 선택
-              </button>
-            ) : (
-              <span className="text-blue-400/50">← 파일 다시 선택</span>
-            )}
+            <button
+              onClick={resetToUpload}
+              className="text-blue-400 hover:text-blue-300 transition-colors"
+            >
+              ← 파일 다시 선택
+            </button>
             <span>|</span>
             <span className="text-green-400">{file?.name}</span>
           </div>
