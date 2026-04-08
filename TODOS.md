@@ -1,7 +1,44 @@
 # TODOS.md — stablenet-pad
 
 **MVP 완료 ✓ — 2026-04-02**
-Step 1~12 전체 PASS. Definition of Done 코드 레벨 항목 전부 충족.
+**Phase 1 완료 ✓ — 2026-04-08** (1-A Template Registry + 1-B Generic Upload)
+**Phase 2 완료 ✓ — 2026-04-08** (운영 액션 레이어, vitest 53/53 PASS)
+
+---
+
+## 오픈 이슈
+
+### ISSUE-1: 액션 이력 조회 UI (미구현)
+- **What:** `contract_actions` 테이블 데이터를 ContractActionPanel 하단 또는 별도 탭에서 표시
+- **Why:** 지금은 실행 로그만 표시 (휘발성). 이력이 Supabase에 쌓이지만 대시보드에서 조회 불가
+- **Priority:** Phase 2-B 시작 전 처리 권장
+
+### ISSUE-2: CertiK Explorer 소스코드 검증 (미정)
+- **What:** 배포된 컨트랙트 소스코드를 Explorer에 검증 제출하는 플로우
+- **Why:** 블록 익스플로러에서 소스 확인 가능 → 팀/외부 신뢰도
+- **Priority:** 낮음. 테스트넷 기준 필수 아님
+
+### ISSUE-3: Supabase 마이그레이션 수동 실행 (블로커)
+- **What:** `supabase/migrations/20260408_contract_actions.sql` 실행 필요
+- **Why:** `contract_actions` 테이블 없으면 액션 이력 저장 시 500 에러 (온체인 실행은 정상)
+- **Action:** Supabase Dashboard > SQL Editor에서 직접 실행
+
+---
+
+## Phase 2-B TODO (다음 단계)
+
+### TODO-P2B-1: DEX 배포 시나리오 end-to-end
+- ERC20 2개 배포 → LiquidityPool 배포 → `addLiquidity()` 액션 실행 → 이력 확인
+- ContractActionPanel에서 LiquidityPool write 함수 목록 자동 파싱 확인
+
+### TODO-P2B-2: 액션 이력 조회 UI
+- ISSUE-1 해결: `GET /api/actions?deploymentId=...` 엔드포인트 + ContractActionPanel 이력 탭
+
+### TODO-P2B-3: GET /api/deployments ABI 필드 분리 (선택)
+- 리스트 응답에서 `abi` 제외 → `GET /api/deployments/[id]` 단건 조회로 분리
+- 현재 limit 10 기준 문제 없음. Phase 2-B 범위 확정 후 결정
+
+---
 
 ---
 
@@ -144,42 +181,17 @@ Step 1~12 전체 PASS. Definition of Done 코드 레벨 항목 전부 충족.
 
 ---
 
-## Phase 1-B 시작 전 체크리스트
+## Phase 1-B — Generic Upload 2단계 흐름 ✅ 완료 (2026-04-08)
 
-> 선행 조건: 아래 항목 전부 ✅ 후 `/plan-eng-review` 실행
-
-- [ ] Railway 재배포 후 QA Scene 2 — ERC20 템플릿 배포 end-to-end
-- [ ] QA Scene 3 — LiquidityPool 템플릿 배포 (ERC20 2개 선배포 후)
-- [ ] QA Scene 4 — 파일 업로드 배포 (기존 .sol 업로드)
-- [ ] GitHub `deployments/stablenet-testnet/{type}/` 경로 파일 생성 확인
-- [ ] VISION.md Phase 2에 "배포 결과 저장 경로 커스터마이징" 항목 추가
-- [ ] npx tsc --noEmit → exit 0
-- [ ] npx eslint . → exit 0
-
----
-
-## Phase 1-B — Generic Upload 2단계 흐름 (Phase 1-A 완료 후)
-
-> 선행 조건: Phase 1-A 완료 + 팀이 Generic Upload 수요 확인
-
-- [ ] `components/GenericDeploySection.tsx` 신규
+- [x] `components/GenericDeploySection.tsx` 신규
   - 상태 머신: 'upload' → 'compiling-preview' → 'params' → 'deploying' → 'done'
-  - 컴파일 실패 시: 에러 표시 + 'upload' 상태로 복귀 (파일 보존)
-  - 파라미터 입력 후 뒤로가기: 'upload' 복귀 (파일 + 파라미터 상태 초기화)
-- [ ] compile-preview SSE 생명주기
-  - 'compiled' 이벤트 수신 시 client EventSource.close()
-  - 'deploy' 클릭 시 새 SSE stream (새 deploymentId로)
-  - server-side: deploymentId별 독립 EventEmitter → 두 stream 간 간섭 없음
-- [ ] ABI → TemplateParam[] 자동 생성
-  - initialize() 있으면: inputs를 TemplateParam[]로 변환
-  - 지원 타입: string, address, uint256, uint24, uint8 scalar만
-  - 지원 외 타입 있으면: "지원하지 않는 파라미터 타입 포함" 에러 + 배포 불가
-- [ ] hasInitializer → Proxy 토글 경고 (auto-lock 아님)
-  - initialize() 없음: ⚠ 경고 표시, 토글은 사용자가 직접 제어
-- [ ] 파일 업로드 보안 강화
-  - .sol 파일명 패턴: `/^[a-zA-Z0-9_-]+\.sol$/`
-  - Content-Type 검증 추가
-- [ ] `app/api/deploy/confirm/route.ts`: Generic 배포 시 type = contractName 저장
+  - noParams flag: initialize() 없는 컨트랙트도 배포 가능 (빈 params)
+  - deploying/done 상태에서 입력 필드 disabled 유지 (값 보존)
+  - "파일 다시 선택" 버튼은 모든 상태에서 클릭 가능
+- [x] ABI → TemplateParam[] 자동 생성 (`abiInputsToTemplateParams()`)
+- [x] Proxy 토글: initialize() 없을 시 경고 표시, 사용자가 직접 제어
+- [x] .sol 파일명 패턴 검증
+- [x] `app/api/deploy/confirm/route.ts`: Generic 배포 시 type = contractName 저장
 
 ## 성능 노트
 
