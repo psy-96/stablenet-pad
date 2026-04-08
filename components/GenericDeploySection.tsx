@@ -169,21 +169,24 @@ export default function GenericDeploySection({ onDeploy, isDeploying, deployerAd
   }
 
   function handleDeploy() {
-    if (!file || !formParams || !contractName.trim()) return
+    const noParams = paramsResult?.params.length === 0
+    const deployParams = noParams ? {} : formParams
+    if (!file || !deployParams || !contractName.trim()) return
     setState('deploying')
     onDeploy({
       file,
       contractType: contractName.trim(),
       contractName: contractName.trim(),
-      params: formParams,
+      params: deployParams,
       useProxy,
     })
   }
 
   const paramsResult = templateParams && !('error' in templateParams) ? templateParams : null
+  const noParams = paramsResult?.params.length === 0
   const canStartPreview = Boolean(file && !fileError && deployerAddress && state === 'upload')
   const canDeploy = Boolean(
-    formParams && formValid && contractName.trim() && deployerAddress && !isDeploying
+    (noParams || (formParams && formValid)) && contractName.trim() && deployerAddress && !isDeploying
   )
 
   return (
@@ -261,87 +264,98 @@ export default function GenericDeploySection({ onDeploy, isDeploying, deployerAd
         </>
       )}
 
-      {/* 파라미터 입력 — params 상태 */}
-      {state === 'params' && paramsResult && (
+      {/* 파라미터 입력 — params / deploying / done 상태에서 표시 */}
+      {(state === 'params' || state === 'deploying' || state === 'done') && paramsResult && (
         <>
           <div className="flex items-center gap-2 text-xs text-gray-500">
-            <button
-              onClick={resetToUpload}
-              className="text-blue-400 hover:text-blue-300 transition-colors"
-            >
-              ← 파일 다시 선택
-            </button>
+            {state === 'params' ? (
+              <button
+                onClick={resetToUpload}
+                className="text-blue-400 hover:text-blue-300 transition-colors"
+              >
+                ← 파일 다시 선택
+              </button>
+            ) : (
+              <span className="text-blue-400/50">← 파일 다시 선택</span>
+            )}
             <span>|</span>
             <span className="text-green-400">{file?.name}</span>
           </div>
 
-          {paramsResult.params.length > 0 ? (
-            <ContractParamsForm
-              params={paramsResult.params}
-              onChange={(p, v) => { setFormParams(p); setFormValid(v) }}
-            />
-          ) : (
-            <p className="text-xs text-gray-500 bg-gray-800 rounded-lg p-3">
-              initialize() 파라미터 없음 — 추가 입력 불필요
-            </p>
-          )}
+          {/* read-only wrapper for deploying/done */}
+          <div className={state !== 'params' ? 'pointer-events-none opacity-60' : ''}>
+            {paramsResult.params.length > 0 ? (
+              <ContractParamsForm
+                params={paramsResult.params}
+                onChange={(p, v) => { setFormParams(p); setFormValid(v) }}
+              />
+            ) : (
+              <p className="text-xs text-gray-500 bg-gray-800 rounded-lg p-3">
+                initialize() 파라미터 없음 — 추가 입력 불필요
+              </p>
+            )}
 
-          {/* 컨트랙트 이름 */}
-          <div className="flex flex-col gap-1">
-            <label className="text-xs text-gray-400">
-              컨트랙트 이름 <span className="text-red-400">*</span>
+            {/* 컨트랙트 이름 */}
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-gray-400">
+                컨트랙트 이름 <span className="text-red-400">*</span>
+              </label>
+              <input
+                type="text"
+                value={contractName}
+                onChange={(e) => setContractName(e.target.value)}
+                disabled={state !== 'params'}
+                placeholder="예: KRWToken"
+                className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 disabled:cursor-not-allowed"
+              />
+            </div>
+
+            {/* Proxy 토글 */}
+            <label className="flex items-center gap-3 cursor-pointer mt-3">
+              <div
+                onClick={() => state === 'params' && setUseProxy(!useProxy)}
+                className={`relative w-10 h-5 rounded-full transition-colors ${useProxy ? 'bg-blue-600' : 'bg-gray-700'}`}
+              >
+                <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${useProxy ? 'translate-x-5' : 'translate-x-0.5'}`} />
+              </div>
+              <span className="text-sm text-gray-300">
+                Proxy 패턴 {useProxy ? 'ON' : 'OFF'}
+                <span className="text-gray-500 ml-1">({useProxy ? '2 트랜잭션' : '1 트랜잭션'})</span>
+              </span>
             </label>
-            <input
-              type="text"
-              value={contractName}
-              onChange={(e) => setContractName(e.target.value)}
-              placeholder="예: KRWToken"
-              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500"
-            />
           </div>
 
-          {/* Proxy 토글 */}
-          <label className="flex items-center gap-3 cursor-pointer">
-            <div
-              onClick={() => setUseProxy(!useProxy)}
-              className={`relative w-10 h-5 rounded-full transition-colors ${useProxy ? 'bg-blue-600' : 'bg-gray-700'}`}
-            >
-              <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${useProxy ? 'translate-x-5' : 'translate-x-0.5'}`} />
-            </div>
-            <span className="text-sm text-gray-300">
-              Proxy 패턴 {useProxy ? 'ON' : 'OFF'}
-              <span className="text-gray-500 ml-1">({useProxy ? '2 트랜잭션' : '1 트랜잭션'})</span>
-            </span>
-          </label>
-
-          {useProxy && !hasInitializer && (
+          {useProxy && !hasInitializer && state === 'params' && (
             <p className="text-xs text-yellow-500 bg-yellow-900/10 border border-yellow-800 rounded p-2">
               ⚠ initialize() 함수가 없습니다. Proxy ON으로 배포하면 초기화 없이 배포됩니다.
             </p>
           )}
 
-          {!deployerAddress && (
+          {!deployerAddress && state === 'params' && (
             <p className="text-yellow-500 text-xs text-center">MetaMask를 연결해야 배포할 수 있습니다</p>
           )}
 
-          <button
-            onClick={handleDeploy}
-            disabled={!canDeploy}
-            className={`
-              w-full py-3 rounded-lg font-medium text-sm transition-colors
-              ${canDeploy
-                ? 'bg-blue-600 hover:bg-blue-500 text-white'
-                : 'bg-gray-800 text-gray-600 cursor-not-allowed'}
-            `}
-          >
-            {isDeploying ? '배포 중...' : '배포 시작'}
-          </button>
-        </>
-      )}
+          {state === 'params' && (
+            <button
+              onClick={handleDeploy}
+              disabled={!canDeploy}
+              className={`
+                w-full py-3 rounded-lg font-medium text-sm transition-colors
+                ${canDeploy
+                  ? 'bg-blue-600 hover:bg-blue-500 text-white'
+                  : 'bg-gray-800 text-gray-600 cursor-not-allowed'}
+              `}
+            >
+              배포 시작
+            </button>
+          )}
 
-      {/* deploying 상태 — LogStream이 page.tsx에서 표시됨 */}
-      {state === 'deploying' && (
-        <p className="text-xs text-gray-500 text-center">배포 진행 중... 로그를 확인하세요</p>
+          {state === 'deploying' && (
+            <div className="w-full py-3 rounded-lg bg-gray-800 text-gray-500 text-sm text-center">
+              배포 중... 로그를 확인하세요
+            </div>
+          )}
+        </>
       )}
     </div>
   )
