@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import type { DeploymentResult } from '@/types'
 import { explorerAddressUrl } from '@/lib/stablenet'
+import { getTemplateById } from '@/lib/template-registry'
 
 interface Props {
   onSelectDeployment?: (deployment: DeploymentResult) => void
@@ -64,12 +65,12 @@ export default function DeployHistory({ onSelectDeployment, onManageDeployment }
                 <div className="flex items-center gap-2 min-w-0">
                   <span
                     className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${
-                      d.type === 'ERC20'
+                      getTemplateById(d.type)
                         ? 'bg-blue-900 text-blue-300'
-                        : 'bg-purple-900 text-purple-300'
+                        : 'bg-gray-700 text-gray-400'
                     }`}
                   >
-                    {d.type}
+                    {getTemplateById(d.type) ? d.type : 'General'}
                   </span>
                   <span className="text-sm text-gray-300 truncate">{d.contractName}</span>
                 </div>
@@ -98,7 +99,7 @@ export default function DeployHistory({ onSelectDeployment, onManageDeployment }
               <div className="border-t border-gray-700 px-3 py-1.5">
                 <button
                   onClick={() => onManageDeployment(d)}
-                  className="text-xs text-orange-500 hover:text-orange-400 transition-colors"
+                  className="text-xs text-gray-400 hover:text-gray-300 border border-gray-600 rounded px-2 py-0.5 transition-colors"
                 >
                   관리 (write 함수 실행)
                 </button>
