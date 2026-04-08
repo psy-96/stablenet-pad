@@ -19,8 +19,16 @@ export async function POST(req: NextRequest) {
 
     const f = file as File
 
-    if (!f.name.endsWith('.sol')) {
-      return NextResponse.json({ error: '.sol 파일만 허용됩니다' }, { status: 400 })
+    if (!/^[a-zA-Z0-9_-]+\.sol$/.test(f.name)) {
+      return NextResponse.json(
+        { error: '.sol 파일만 허용됩니다 (파일명: 영문자·숫자·_·- 만 사용 가능)' },
+        { status: 400 }
+      )
+    }
+
+    const contentType = f.type
+    if (contentType && ['text/html', 'application/javascript'].includes(contentType)) {
+      return NextResponse.json({ error: '허용되지 않는 파일 형식입니다' }, { status: 400 })
     }
 
     if (f.size > MAX_FILE_SIZE) {

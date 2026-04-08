@@ -329,9 +329,8 @@ function encodeInitData(abi: Abi, params: ContractParams): `0x${string}` {
   )
 
   if (!initFn) {
-    throw new Error(
-      'initialize() 함수를 찾을 수 없습니다. OpenZeppelin Upgradeable 컨트랙트인지 확인하세요.'
-    )
+    // initialize() 없는 컨트랙트: Proxy는 0x initData로 배포 (initializer 호출 없음)
+    return '0x'
   }
 
   const args = initFn.inputs.map((input) => {

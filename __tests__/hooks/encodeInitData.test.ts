@@ -8,8 +8,9 @@ function encodeInitData(abi: Abi, params: ContractParams): `0x${string}` {
   const initFn = abi.find(
     (item): item is AbiFunction => item.type === 'function' && item.name === 'initialize'
   )
+  // initialize() 없으면 0x — Proxy는 initializer 없이 배포 가능
   if (!initFn) {
-    throw new Error('initialize() not found')
+    return '0x'
   }
   const args = initFn.inputs.map((input) => {
     const key = input.name ?? ''
@@ -98,11 +99,15 @@ describe('encodeInitData — LiquidityPool', () => {
 })
 
 describe('encodeInitData — edge cases', () => {
-  it('throws when no initialize() in ABI', () => {
+  it('returns 0x when no initialize() in ABI (Proxy without initializer)', () => {
     const noInitAbi: Abi = [
       { type: 'function', name: 'transfer', inputs: [], outputs: [], stateMutability: 'nonpayable' },
     ]
-    expect(() => encodeInitData(noInitAbi, {})).toThrow('initialize()')
+    expect(encodeInitData(noInitAbi, {})).toBe('0x')
+  })
+
+  it('returns 0x for empty ABI', () => {
+    expect(encodeInitData([], {})).toBe('0x')
   })
 
   it('throws on unsupported type', () => {

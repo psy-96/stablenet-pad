@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest'
 import {
   TEMPLATE_REGISTRY,
   getTemplateById,
+  abiInputsToTemplateParams,
   type TemplateDefinition,
   type TemplateParam,
 } from '@/lib/template-registry'
@@ -32,12 +33,12 @@ describe('TEMPLATE_REGISTRY', () => {
     expect(keys).toContain('initialSupply')
   })
 
-  it('LiquidityPool has tokenA, tokenB, fee params', () => {
+  it('LiquidityPool has _tokenA, _tokenB, _fee params (ABI key names)', () => {
     const lp = TEMPLATE_REGISTRY.find((t) => t.id === 'LiquidityPool')!
     const keys = lp.params.map((p: TemplateParam) => p.key)
-    expect(keys).toContain('tokenA')
-    expect(keys).toContain('tokenB')
-    expect(keys).toContain('fee')
+    expect(keys).toContain('_tokenA')
+    expect(keys).toContain('_tokenB')
+    expect(keys).toContain('_fee')
   })
 
   it('LiquidityPool address-select params have fetchUrl', () => {
@@ -57,6 +58,82 @@ describe('TEMPLATE_REGISTRY', () => {
         expect(validTypes.has(p.type), `${t.id}.${p.key} has invalid type: ${p.type}`).toBe(true)
       }
     }
+  })
+})
+
+describe('abiInputsToTemplateParams', () => {
+  const makeAbi = (inputs: { name: string; type: string }[]) => [
+    { type: 'function', name: 'initialize', inputs },
+  ]
+
+  it('converts string/address/uint256/uint24/uint8 to correct TemplateParam types', () => {
+    const abi = makeAbi([
+      { name: 'tokenName', type: 'string' },
+      { name: 'tokenAddr', type: 'address' },
+      { name: 'supply', type: 'uint256' },
+      { name: 'fee', type: 'uint24' },
+      { name: 'decimals', type: 'uint8' },
+    ])
+    const result = abiInputsToTemplateParams(abi)
+    expect('params' in result).toBe(true)
+    if (!('params' in result)) return
+    expect(result.params).toHaveLength(5)
+    expect(result.params[0]).toMatchObject({ key: 'tokenName', type: 'text' })
+    expect(result.params[1]).toMatchObject({ key: 'tokenAddr', type: 'address' })
+    expect(result.params[2]).toMatchObject({ key: 'supply', type: 'uint256' })
+    expect(result.params[3]).toMatchObject({ key: 'fee', type: 'uint256' })
+    expect(result.params[4]).toMatchObject({ key: 'decimals', type: 'uint256' })
+  })
+
+  it('returns empty params when no initialize() in ABI', () => {
+    const abi = [{ type: 'function', name: 'transfer', inputs: [] }]
+    const result = abiInputsToTemplateParams(abi)
+    expect('params' in result).toBe(true)
+    if (!('params' in result)) return
+    expect(result.params).toHaveLength(0)
+  })
+
+  it('returns empty params for empty ABI', () => {
+    const result = abiInputsToTemplateParams([])
+    expect('params' in result).toBe(true)
+    if (!('params' in result)) return
+    expect(result.params).toHaveLength(0)
+  })
+
+  it('returns empty params when initialize() has no inputs', () => {
+    const abi = makeAbi([])
+    const result = abiInputsToTemplateParams(abi)
+    expect('params' in result).toBe(true)
+    if (!('params' in result)) return
+    expect(result.params).toHaveLength(0)
+  })
+
+  it('returns error for unsupported type bytes32', () => {
+    const abi = makeAbi([{ name: 'data', type: 'bytes32' }])
+    const result = abiInputsToTemplateParams(abi)
+    expect('error' in result).toBe(true)
+    if (!('error' in result)) return
+    expect(result.error).toContain('bytes32')
+  })
+
+  it('returns error for unsupported type bool', () => {
+    const abi = makeAbi([{ name: 'flag', type: 'bool' }])
+    const result = abiInputsToTemplateParams(abi)
+    expect('error' in result).toBe(true)
+  })
+
+  it('returns error for tuple type', () => {
+    const abi = makeAbi([{ name: 'config', type: 'tuple' }])
+    const result = abiInputsToTemplateParams(abi)
+    expect('error' in result).toBe(true)
+  })
+
+  it('param key matches ABI input name', () => {
+    const abi = makeAbi([{ name: '_owner', type: 'address' }])
+    const result = abiInputsToTemplateParams(abi)
+    expect('params' in result).toBe(true)
+    if (!('params' in result)) return
+    expect(result.params[0].key).toBe('_owner')
   })
 })
 

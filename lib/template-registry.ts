@@ -75,3 +75,46 @@ export const TEMPLATE_REGISTRY: TemplateDefinition[] = [
 export function getTemplateById(id: string): TemplateDefinition | undefined {
   return TEMPLATE_REGISTRY.find((t) => t.id === id)
 }
+
+// ABI 지원 타입 → TemplateParam type 매핑
+const ABI_TYPE_MAP: Record<string, TemplateParam['type']> = {
+  string: 'text',
+  address: 'address',
+  uint256: 'uint256',
+  uint24: 'uint256',
+  uint8: 'uint256',
+}
+
+/**
+ * 컴파일된 ABI의 initialize() inputs를 ContractParamsForm이 렌더링할 수 있는
+ * TemplateParam[] 으로 변환한다.
+ *
+ * - initialize() 없으면: 빈 배열 반환 (Proxy는 0x initData로 배포 가능)
+ * - 지원 외 타입(bytes32, bool, tuple 등) 포함 시: error 반환 → 배포 불가
+ */
+export function abiInputsToTemplateParams(
+  abi: { type: string; name: string; inputs?: { name: string; type: string }[] }[]
+): { params: TemplateParam[] } | { error: string } {
+  const initFn = abi.find((item) => item.type === 'function' && item.name === 'initialize')
+
+  if (!initFn || !initFn.inputs || initFn.inputs.length === 0) {
+    return { params: [] }
+  }
+
+  const params: TemplateParam[] = []
+  for (const input of initFn.inputs) {
+    const mappedType = ABI_TYPE_MAP[input.type]
+    if (!mappedType) {
+      return {
+        error: `지원하지 않는 파라미터 타입 포함: ${input.type} (지원: string, address, uint256, uint24, uint8)`,
+      }
+    }
+    params.push({
+      key: input.name,
+      label: input.name,
+      type: mappedType,
+    })
+  }
+
+  return { params }
+}
