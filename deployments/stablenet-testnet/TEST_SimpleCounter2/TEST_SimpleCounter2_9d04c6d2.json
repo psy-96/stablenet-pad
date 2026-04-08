@@ -1,0 +1,68 @@
+{
+  "contractName": "TEST_SimpleCounter2",
+  "type": "TEST_SimpleCounter2",
+  "network": "stablenet-testnet",
+  "chainId": 8283,
+  "proxyAddress": "0x9d04c6d23e97f0c171d26142faa644247ee41217",
+  "implementationAddress": "0xbe64b6c3df1f44980ded0fe60e1f43ea5013b736",
+  "previousProxyAddress": null,
+  "abi": [
+    {
+      "inputs": [],
+      "name": "count",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "increment",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_initialCount",
+          "type": "uint256"
+        }
+      ],
+      "name": "initialize",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "owner",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "reset",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "txHash": "0xc222527960ffb5706ed688c7412bf1573a1a542e1b5bfbbe20d90580f584cacd",
+  "blockNumber": 5965191,
+  "deployedAt": "2026-04-08T08:36:35.165Z",
+  "deployer": "0x069331CB8ADC2E376f0A2F8a6CDDee4f021e07cD"
+}
