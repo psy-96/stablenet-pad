@@ -76,6 +76,65 @@ export function getTemplateById(id: string): TemplateDefinition | undefined {
   return TEMPLATE_REGISTRY.find((t) => t.id === id)
 }
 
+// ─── Phase 2: ABI write 함수 파싱 ────────────────────────────────────────
+
+import type { ActionParam, ActionParamType, ActionFunctionDef } from '@/types'
+
+type AbiItem = {
+  type: string
+  name?: string
+  stateMutability?: string
+  inputs?: { name: string; type: string }[]
+}
+
+/** Solidity 타입 → ActionParamType 분류 */
+function classifyAbiType(solType: string): ActionParamType {
+  if (solType === 'string') return 'text'
+  if (solType === 'address') return 'address'
+  if (solType === 'bool') return 'bool'
+  if (/^u?int(\d+)?$/.test(solType)) return 'uint256'
+  if (/^bytes(\d+)?$/.test(solType)) return 'raw-hex'
+  // tuple, tuple[], address[], uint256[], 기타 복합 타입
+  return 'disabled'
+}
+
+/**
+ * ABI에서 write 함수 목록을 추출해 ActionFunctionDef[] 로 반환한다.
+ *
+ * - view / pure 함수 제외
+ * - constructor / fallback / receive 제외
+ * - initialize() 제외 (배포 시 이미 호출됨)
+ * - upgradeTo / upgradeToAndCall 은 포함 (일반 write 함수로 처리)
+ */
+export function abiWriteFunctionsToActions(abi: AbiItem[]): ActionFunctionDef[] {
+  const result: ActionFunctionDef[] = []
+
+  for (const item of abi) {
+    if (item.type !== 'function') continue
+    if (!item.name) continue
+    if (item.name === 'initialize') continue
+    const mut = item.stateMutability
+    if (mut !== 'nonpayable' && mut !== 'payable') continue
+
+    const params: ActionParam[] = (item.inputs ?? []).map((input) => ({
+      key: input.name,
+      label: input.name,
+      solType: input.type,
+      type: classifyAbiType(input.type),
+    }))
+
+    const paramSig = (item.inputs ?? []).map((i) => i.type).join(',')
+    result.push({
+      name: item.name,
+      signature: `${item.name}(${paramSig})`,
+      params,
+      stateMutability: mut as 'nonpayable' | 'payable',
+    })
+  }
+
+  return result
+}
+
 // ABI 지원 타입 → TemplateParam type 매핑
 const ABI_TYPE_MAP: Record<string, TemplateParam['type']> = {
   string: 'text',

@@ -3,12 +3,13 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /**
  * @title LiquidityPool
  * @notice StableNet 테스트넷 표준 LiquidityPool 템플릿 (ERC1967 Proxy 패턴)
  */
-contract LiquidityPool is Initializable, OwnableUpgradeable {
+contract LiquidityPool is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     address public tokenA;
     address public tokenB;
     uint24 public fee;
@@ -32,6 +33,7 @@ contract LiquidityPool is Initializable, OwnableUpgradeable {
 
     function initialize(address _tokenA, address _tokenB, uint24 _fee) public initializer {
         __Ownable_init(msg.sender);
+        __UUPSUpgradeable_init();
         require(_tokenA != address(0) && _tokenB != address(0), "LiquidityPool: invalid token address");
         require(_tokenA != _tokenB, "LiquidityPool: identical tokens");
         tokenA = _tokenA;
@@ -42,4 +44,6 @@ contract LiquidityPool is Initializable, OwnableUpgradeable {
     function getReserves() external view returns (uint256 _reserveA, uint256 _reserveB) {
         return (reserveA, reserveB);
     }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 }

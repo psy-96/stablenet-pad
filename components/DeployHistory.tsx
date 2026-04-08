@@ -6,9 +6,10 @@ import { explorerAddressUrl } from '@/lib/stablenet'
 
 interface Props {
   onSelectDeployment?: (deployment: DeploymentResult) => void
+  onManageDeployment?: (deployment: DeploymentResult) => void
 }
 
-export default function DeployHistory({ onSelectDeployment }: Props) {
+export default function DeployHistory({ onSelectDeployment, onManageDeployment }: Props) {
   const [deployments, setDeployments] = useState<DeploymentResult[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -51,45 +52,59 @@ export default function DeployHistory({ onSelectDeployment }: Props) {
 
       <div className="space-y-1">
         {deployments.map((d) => (
-          <button
+          <div
             key={d.id}
-            onClick={() => onSelectDeployment?.(d)}
-            className="w-full text-left px-3 py-2 bg-gray-800 hover:bg-gray-700 rounded-lg transition-colors"
+            className="bg-gray-800 rounded-lg overflow-hidden"
           >
-            <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0">
-                <span
-                  className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${
-                    d.type === 'ERC20'
-                      ? 'bg-blue-900 text-blue-300'
-                      : 'bg-purple-900 text-purple-300'
-                  }`}
-                >
-                  {d.type}
+            <button
+              onClick={() => onSelectDeployment?.(d)}
+              className="w-full text-left px-3 py-2 hover:bg-gray-700 transition-colors"
+            >
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2 min-w-0">
+                  <span
+                    className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${
+                      d.type === 'ERC20'
+                        ? 'bg-blue-900 text-blue-300'
+                        : 'bg-purple-900 text-purple-300'
+                    }`}
+                  >
+                    {d.type}
+                  </span>
+                  <span className="text-sm text-gray-300 truncate">{d.contractName}</span>
+                </div>
+                <span className="text-xs text-gray-600 shrink-0">
+                  {new Date(d.createdAt).toLocaleString('ko-KR', {
+                    month: '2-digit',
+                    day: '2-digit',
+                    hour: '2-digit',
+                    minute: '2-digit',
+                  })}
                 </span>
-                <span className="text-sm text-gray-300 truncate">{d.contractName}</span>
               </div>
-              <span className="text-xs text-gray-600 shrink-0">
-                {new Date(d.createdAt).toLocaleString('ko-KR', {
-                  month: '2-digit',
-                  day: '2-digit',
-                  hour: '2-digit',
-                  minute: '2-digit',
-                })}
-              </span>
-            </div>
-            {d.proxyAddress && (
-              <a
-                href={explorerAddressUrl(d.proxyAddress)}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={(e) => e.stopPropagation()}
-                className="text-xs text-gray-600 hover:text-blue-400 font-mono mt-1 block truncate transition-colors"
-              >
-                {d.proxyAddress}
-              </a>
+              {d.proxyAddress && (
+                <a
+                  href={explorerAddressUrl(d.proxyAddress)}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  onClick={(e) => e.stopPropagation()}
+                  className="text-xs text-gray-600 hover:text-blue-400 font-mono mt-1 block truncate transition-colors"
+                >
+                  {d.proxyAddress}
+                </a>
+              )}
+            </button>
+            {onManageDeployment && d.abi && d.proxyAddress && (
+              <div className="border-t border-gray-700 px-3 py-1.5">
+                <button
+                  onClick={() => onManageDeployment(d)}
+                  className="text-xs text-orange-500 hover:text-orange-400 transition-colors"
+                >
+                  관리 (write 함수 실행)
+                </button>
+              </div>
             )}
-          </button>
+          </div>
         ))}
       </div>
     </div>

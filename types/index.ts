@@ -102,3 +102,50 @@ export interface ConfirmResponse {
   proxyAddress: string
   blockNumber: number
 }
+
+// ─── Phase 2: 운영 액션 ───────────────────────────────────────────────────
+
+/**
+ * ABI write 함수 파라미터 타입 분류
+ * - text    : string → text input
+ * - address : address → text input (0x 검증)
+ * - uint256 : uint*, int* → number input (BigInt 변환)
+ * - bool    : bool → checkbox
+ * - raw-hex : bytes, bytes32 등 → hex text input
+ * - disabled: tuple, tuple[], 기타 복합 타입 → UI 비활성
+ */
+export type ActionParamType = 'text' | 'address' | 'uint256' | 'bool' | 'raw-hex' | 'disabled'
+
+export interface ActionParam {
+  key: string
+  label: string
+  /** 원본 Solidity 타입 — 인코딩 시 사용 */
+  solType: string
+  type: ActionParamType
+}
+
+export interface ActionFunctionDef {
+  name: string
+  /** e.g. "mint(address,uint256)" */
+  signature: string
+  params: ActionParam[]
+  stateMutability: 'nonpayable' | 'payable'
+}
+
+// POST /api/actions/confirm 요청
+export interface ActionConfirmRequest {
+  /** deployments 테이블 UUID */
+  deploymentRowId: string
+  functionName: string
+  /** 실행한 파라미터 (표시용, jsonb) */
+  params: Record<string, string>
+  txHash: string
+  blockNumber: number
+  executor: string
+}
+
+// POST /api/actions/confirm 응답
+export interface ActionConfirmResponse {
+  success: boolean
+  actionId: string
+}

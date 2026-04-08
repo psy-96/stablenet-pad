@@ -3,10 +3,11 @@ pragma solidity ^0.8.20;
 
 import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
 
 /// @title SimpleVault
 /// @notice Ether custody vault — only owner can withdraw.
-contract SimpleVault is Initializable, OwnableUpgradeable {
+contract SimpleVault is Initializable, OwnableUpgradeable, UUPSUpgradeable {
     bool private _locked;
 
     event Deposited(address indexed sender, uint256 amount);
@@ -19,6 +20,7 @@ contract SimpleVault is Initializable, OwnableUpgradeable {
 
     function initialize(address owner_) public initializer {
         __Ownable_init(owner_);
+        __UUPSUpgradeable_init();
     }
 
     receive() external payable {
@@ -38,4 +40,6 @@ contract SimpleVault is Initializable, OwnableUpgradeable {
     function balance() external view returns (uint256) {
         return address(this).balance;
     }
+
+    function _authorizeUpgrade(address) internal override onlyOwner {}
 }

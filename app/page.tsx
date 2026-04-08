@@ -7,6 +7,7 @@ import DeployPanel from '@/components/DeployPanel'
 import LogStream from '@/components/LogStream'
 import ResultPanel from '@/components/ResultPanel'
 import DeployHistory from '@/components/DeployHistory'
+import ContractActionPanel from '@/components/ContractActionPanel'
 import { useDeploy } from '@/hooks/useDeploy'
 import type { DeploymentResult } from '@/types'
 
@@ -29,12 +30,14 @@ export default function Home() {
 
   const [deploymentId, setDeploymentId] = useState<string | null>(null)
   const [selectedDeployment, setSelectedDeployment] = useState<DeploymentResult | null>(null)
+  const [managedDeployment, setManagedDeployment] = useState<DeploymentResult | null>(null)
   const [historyKey, setHistoryKey] = useState(0) // DeployHistory 재마운트 트리거
 
   const hasNoBalance = balance && balance.value === 0n
 
   async function handleDeploy(params: Parameters<typeof deploy>[0]) {
     setSelectedDeployment(null)
+    setManagedDeployment(null)
     setDeploymentId(null)
     await deploy(params)
     // 배포 완료 후 이력 새로고침
@@ -100,21 +103,33 @@ export default function Home() {
                 key={historyKey}
                 onSelectDeployment={(d) => {
                   setSelectedDeployment(d)
+                  setManagedDeployment(null)
+                }}
+                onManageDeployment={(d) => {
+                  setManagedDeployment(d)
+                  setSelectedDeployment(null)
                 }}
               />
             </div>
           </div>
 
-          {/* 오른쪽: Result Panel */}
+          {/* 오른쪽: ContractActionPanel or ResultPanel */}
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 overflow-y-auto">
-            <ResultPanel
-              proxyAddress={panelProxyAddress}
-              implementationAddress={panelImplAddress}
-              txHash={panelTxHash}
-              abi={panelAbi}
-              githubCommitUrl={panelGithub}
-              onDownloadJson={selectedDeployment ? null : downloadArtifact}
-            />
+            {managedDeployment ? (
+              <ContractActionPanel
+                deployment={managedDeployment}
+                onClose={() => setManagedDeployment(null)}
+              />
+            ) : (
+              <ResultPanel
+                proxyAddress={panelProxyAddress}
+                implementationAddress={panelImplAddress}
+                txHash={panelTxHash}
+                abi={panelAbi}
+                githubCommitUrl={panelGithub}
+                onDownloadJson={selectedDeployment ? null : downloadArtifact}
+              />
+            )}
           </div>
         </div>
       </main>
