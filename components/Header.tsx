@@ -1,10 +1,9 @@
 'use client'
 
 import { useState, useEffect } from 'react'
-import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain, useBalance } from 'wagmi'
+import { useAccount, useConnect, useDisconnect, useChainId, useSwitchChain } from 'wagmi'
 import { stablenetTestnet } from '@/lib/wagmi'
 import { explorerAddressUrl } from '@/lib/stablenet'
-import { formatEther } from 'viem'
 
 const METAMASK_INSTALL_URL = 'https://metamask.io/download/'
 
@@ -22,10 +21,21 @@ export default function Header() {
   const { disconnect } = useDisconnect()
   const chainId = useChainId()
   const { switchChain } = useSwitchChain()
-  const { data: balance, isError: balanceError } = useBalance({
-    address,
-    chainId: stablenetTestnet.id,
-  })
+
+  const [balanceDisplay, setBalanceDisplay] = useState<'loading' | 'error' | string>('loading')
+
+  useEffect(() => {
+    if (!address || !isConnected) return
+    let cancelled = false
+    fetch(`/api/balance?address=${address}`)
+      .then((r) => r.json())
+      .then((data: { balance?: string; error?: string }) => {
+        if (cancelled) return
+        setBalanceDisplay(data.balance !== undefined ? data.balance : 'error')
+      })
+      .catch(() => { if (!cancelled) setBalanceDisplay('error') })
+    return () => { cancelled = true }
+  }, [address, isConnected])
 
   const isCorrectChain = chainId === stablenetTestnet.id
   const isMetaMaskInstalled =
@@ -95,11 +105,11 @@ export default function Header() {
               <div className="flex items-center gap-2 text-sm">
                 <span className="w-2 h-2 rounded-full bg-green-400 inline-block" />
                 <span className="text-gray-400">
-                  {balanceError
+                  {balanceDisplay === 'error'
                     ? '- WKRC'
-                    : balance
-                      ? `${Number(formatEther(balance.value)).toFixed(4)} WKRC`
-                      : '조회 중...'}
+                    : balanceDisplay === 'loading'
+                      ? '조회 중...'
+                      : `${Number(balanceDisplay).toFixed(4)} WKRC`}
                 </span>
               </div>
             )}

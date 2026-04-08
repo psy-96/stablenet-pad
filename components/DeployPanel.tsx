@@ -20,6 +20,7 @@ interface Props {
   onDeploy: (params: {
     file: File | null
     contractType: string
+    contractName?: string
     params: ContractParams
     useProxy: boolean
   }) => void
@@ -37,6 +38,7 @@ export default function DeployPanel({ onDeploy, isDeploying, deployerAddress }: 
   const [templateParams, setTemplateParams] = useState<ContractParams | null>(null)
   const [templateParamsValid, setTemplateParamsValid] = useState(false)
   const [templateUseProxy, setTemplateUseProxy] = useState(true)
+  const [templateContractName, setTemplateContractName] = useState('')
 
   // 업로드 모드
   const [file, setFile] = useState<File | null>(null)
@@ -57,7 +59,17 @@ export default function DeployPanel({ onDeploy, isDeploying, deployerAddress }: 
     setSelectedTemplateId(id)
     setTemplateParams(null)
     setTemplateParamsValid(false)
+    setTemplateContractName('')
     setExistingDeployment(null)
+  }
+
+  function handleTemplateParamsChange(p: ContractParams | null, v: boolean) {
+    setTemplateParams(p)
+    setTemplateParamsValid(v)
+    // 'name' 파라미터가 있는 템플릿(ERC20 등)은 contractName 자동 동기화
+    if (p && selectedTemplate?.params.some((tp) => tp.key === 'name') && p.name) {
+      setTemplateContractName(p.name)
+    }
   }
 
   // 재배포 감지: 업로드 모드 전용
@@ -111,19 +123,33 @@ export default function DeployPanel({ onDeploy, isDeploying, deployerAddress }: 
 
   const canDeploy = Boolean(
     formParams && formValid && deployerAddress && !isDeploying &&
-    (isTemplate ? selectedTemplateId : file)
+    (isTemplate
+      ? selectedTemplateId && templateContractName.trim()
+      : file)
   )
 
   function handleSubmit() {
     if (!canDeploy || !formParams) return
     if (existingDeployment) { setShowRedeployModal(true); return }
-    onDeploy({ file: isTemplate ? null : file, contractType, params: formParams, useProxy })
+    onDeploy({
+      file: isTemplate ? null : file,
+      contractType,
+      contractName: isTemplate ? templateContractName.trim() : undefined,
+      params: formParams,
+      useProxy,
+    })
   }
 
   function confirmRedeploy() {
     setShowRedeployModal(false)
     if (!formParams) return
-    onDeploy({ file: isTemplate ? null : file, contractType, params: formParams, useProxy })
+    onDeploy({
+      file: isTemplate ? null : file,
+      contractType,
+      contractName: isTemplate ? templateContractName.trim() : undefined,
+      params: formParams,
+      useProxy,
+    })
   }
 
   return (
@@ -159,9 +185,27 @@ export default function DeployPanel({ onDeploy, isDeploying, deployerAddress }: 
           {selectedTemplate && (
             <ContractParamsForm
               params={selectedTemplate.params}
-              onChange={(p, v) => { setTemplateParams(p); setTemplateParamsValid(v) }}
+              onChange={handleTemplateParamsChange}
             />
           )}
+
+          {/* 컨트랙트 이름 입력 (Supabase 저장 + GitHub 파일명 기준) */}
+          <div className="flex flex-col gap-1">
+            <label className="text-xs text-gray-400">
+              컨트랙트 이름 <span className="text-red-400">*</span>
+            </label>
+            <input
+              type="text"
+              value={templateContractName}
+              onChange={(e) => setTemplateContractName(e.target.value)}
+              placeholder="예: KRWToken"
+              className="w-full px-3 py-2 bg-gray-800 border border-gray-700 rounded-lg text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500"
+            />
+            {!templateContractName.trim() && templateParams && (
+              <p className="text-xs text-yellow-500">배포 결과 저장에 사용됩니다 (필수)</p>
+            )}
+          </div>
+
           <label className="flex items-center gap-3 cursor-pointer">
             <div
               onClick={() => setTemplateUseProxy(!templateUseProxy)}

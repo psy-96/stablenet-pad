@@ -26,6 +26,7 @@ interface UseDeployResult {
   deploy: (params: {
     file: File | null
     contractType: ContractType
+    contractName?: string
     params: ContractParams
     useProxy: boolean
   }) => Promise<void>
@@ -68,11 +69,13 @@ export function useDeploy(): UseDeployResult {
     async ({
       file,
       contractType,
+      contractName: contractNameOverride,
       params,
       useProxy,
     }: {
       file: File | null
       contractType: ContractType
+      contractName?: string
       params: ContractParams
       useProxy: boolean
     }) => {
@@ -224,9 +227,8 @@ export function useDeploy(): UseDeployResult {
         // ── Phase 3: 서버 저장 ────────────────────────────────────────
         addLog('결과물 저장 중...')
 
-        const contractName = template
-          ? contractType
-          : file!.name.replace(/\.sol$/, '')
+        const contractName = contractNameOverride
+          ?? (template ? contractType : file!.name.replace(/\.sol$/, ''))
         const confirmBody: ConfirmRequest = {
           deploymentId,
           contractName,
