@@ -83,19 +83,19 @@ export default function DeployHistory({ onSelectDeployment, onManageDeployment }
                   })}
                 </span>
               </div>
-              {d.proxyAddress && (
+              {(d.proxyAddress ?? d.implementationAddress) && (
                 <a
-                  href={explorerAddressUrl(d.proxyAddress)}
+                  href={explorerAddressUrl((d.proxyAddress ?? d.implementationAddress)!)}
                   target="_blank"
                   rel="noopener noreferrer"
                   onClick={(e) => e.stopPropagation()}
                   className="text-xs text-gray-600 hover:text-blue-400 font-mono mt-1 block truncate transition-colors"
                 >
-                  {d.proxyAddress}
+                  {d.proxyAddress ?? d.implementationAddress}
                 </a>
               )}
             </button>
-            {onManageDeployment && d.abi && d.proxyAddress && (
+            {onManageDeployment && d.abi && (d.proxyAddress ?? d.implementationAddress) && (
               <div className="border-t border-gray-700 px-3 py-1.5">
                 <button
                   onClick={() => onManageDeployment(d)}
