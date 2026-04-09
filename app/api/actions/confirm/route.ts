@@ -62,10 +62,29 @@ export async function POST(req: NextRequest) {
   let events: ParsedEvent[] = []
   if (deploymentAbi) {
     try {
+      // viem getTransactionReceipt
       const receipt = await viemPublicClient.getTransactionReceipt({
         hash: txHash as Hash,
       })
-      console.log('[confirm] receipt.logs.length:', receipt.logs.length)
+      console.log('[confirm] viem receipt.logs.length:', receipt.logs.length)
+      console.log('[confirm] viem receipt (full):', JSON.stringify(receipt, (_k, v) =>
+        typeof v === 'bigint' ? v.toString() : v
+      ))
+
+      // raw eth_getTransactionReceipt — viem 파싱 없이 RPC 응답 직접 확인
+      const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL ?? 'https://api.test.stablenet.network'
+      const rawRes = await fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          jsonrpc: '2.0', id: 1,
+          method: 'eth_getTransactionReceipt',
+          params: [txHash],
+        }),
+      })
+      const rawJson = (await rawRes.json()) as unknown
+      console.log('[confirm] raw eth_getTransactionReceipt:', JSON.stringify(rawJson))
+
       events = parseReceiptEvents([...receipt.logs], deploymentAbi)
       console.log('[confirm] parsed events.length:', events.length)
     } catch (err) {
