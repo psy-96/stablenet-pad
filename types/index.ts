@@ -99,7 +99,8 @@ export interface ConfirmRequest {
 export interface ConfirmResponse {
   success: boolean
   githubCommitUrl: string | null
-  proxyAddress: string
+  proxyAddress: string | null
+  implementationAddress: string | null
   blockNumber: number
 }
 

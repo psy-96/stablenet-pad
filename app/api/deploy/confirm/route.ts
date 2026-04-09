@@ -28,7 +28,7 @@ export async function POST(req: NextRequest) {
   })
 
   // ─── Receipt 대기 (서버사이드 — CORS 우회) ─────────────────────────────────
-  let proxyAddress: string
+  let deployedAddress: string  // receipt의 실제 배포 주소
   let blockNumber: number
 
   try {
@@ -42,13 +42,19 @@ export async function POST(req: NextRequest) {
       throw new Error('컨트랙트 주소를 receipt에서 찾을 수 없습니다')
     }
 
-    proxyAddress = receipt.contractAddress
+    deployedAddress = receipt.contractAddress
     blockNumber = Number(receipt.blockNumber)
   } catch (err) {
     const msg = err instanceof Error ? err.message : 'Receipt 조회 실패'
     emitSSE(deploymentId, { event: 'error', data: { message: msg } })
     return NextResponse.json({ error: msg }, { status: 500 })
   }
+
+  // Proxy ON: receipt = Proxy 주소, implAddress = Implementation 주소
+  // Proxy OFF: receipt = 컨트랙트 주소, implAddress = null
+  const isProxy = Boolean(implAddress)
+  const proxyAddress = isProxy ? deployedAddress : null
+  const implementationAddress = isProxy ? implAddress! : deployedAddress
 
   emitSSE(deploymentId, {
     event: 'saving',
@@ -76,7 +82,7 @@ export async function POST(req: NextRequest) {
     contract_name: contractName,
     type: contractType,
     proxy_address: proxyAddress,
-    implementation_address: implAddress ?? null,
+    implementation_address: implementationAddress,
     previous_proxy_address: previousProxyAddress,
     tx_hash: txHash,
     block_number: blockNumber,
@@ -103,7 +109,7 @@ export async function POST(req: NextRequest) {
     network: 'stablenet-testnet',
     chainId: 8283,
     proxyAddress,
-    implementationAddress: implAddress ?? null,
+    implementationAddress,
     previousProxyAddress,
     abi,
     txHash,
@@ -112,9 +118,9 @@ export async function POST(req: NextRequest) {
     deployer: deployerAddress,
   }
 
-  // 파일명: {contractName}_{proxyAddress 앞 8자리}.json, type 서브폴더로 분류
-  // 예: deployments/stablenet-testnet/ERC20/KRWToken_551ce0c4.json
-  const addrSlug = proxyAddress.toLowerCase().replace(/^0x/, '').slice(0, 8)
+  // 파일명: {contractName}_{배포주소 앞 8자리}.json, type 서브폴더로 분류
+  // Proxy ON → proxyAddress 기준, Proxy OFF → implementationAddress 기준
+  const addrSlug = deployedAddress.toLowerCase().replace(/^0x/, '').slice(0, 8)
   const artifactFileName = `${contractName}_${addrSlug}.json`
 
   const localDir = path.join(process.cwd(), 'deployments', 'stablenet-testnet', contractType)
@@ -144,7 +150,7 @@ export async function POST(req: NextRequest) {
         githubCommitUrl: null,
       },
     })
-    return NextResponse.json({ success: true, githubCommitUrl: null, proxyAddress, blockNumber })
+    return NextResponse.json({ success: true, githubCommitUrl: null, proxyAddress, implementationAddress, blockNumber })
   }
 
   emitSSE(deploymentId, {
@@ -152,5 +158,5 @@ export async function POST(req: NextRequest) {
     data: { message: '배포 완료', githubCommitUrl: commitUrl },
   })
 
-  return NextResponse.json({ success: true, githubCommitUrl: commitUrl, proxyAddress, blockNumber })
+  return NextResponse.json({ success: true, githubCommitUrl: commitUrl, proxyAddress, implementationAddress, blockNumber })
 }

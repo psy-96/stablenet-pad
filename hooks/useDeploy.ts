@@ -221,7 +221,6 @@ export function useDeploy(): UseDeployResult {
           addLog(`트랜잭션 제출: ${finalTxHash.slice(0, 16)}...`)
         }
 
-        setDeployedImplAddress(implAddress)
         setDeployedAbi(abi as object[])
 
         // ── Phase 3: 서버 저장 ────────────────────────────────────────
@@ -253,6 +252,7 @@ export function useDeploy(): UseDeployResult {
         const confirmData = (await confirmRes.json()) as import('@/types').ConfirmResponse
 
         setDeployedProxyAddress(confirmData.proxyAddress)
+        setDeployedImplAddress(confirmData.implementationAddress)
 
         if (confirmData.githubCommitUrl) {
           setGithubCommitUrl(confirmData.githubCommitUrl)
@@ -268,7 +268,7 @@ export function useDeploy(): UseDeployResult {
           network: 'stablenet-testnet',
           chainId: 8283,
           proxyAddress: confirmData.proxyAddress,
-          implementationAddress: implAddress ?? null,
+          implementationAddress: confirmData.implementationAddress,
           abi,
           txHash: finalTxHash,
           blockNumber: confirmData.blockNumber,

@@ -41,7 +41,11 @@ export default function ResultPanel({
 }: Props) {
   const [showAbi, setShowAbi] = useState(false)
 
-  if (!proxyAddress) {
+  // Proxy ON: proxyAddress 있음, implementationAddress 있음
+  // Proxy OFF: proxyAddress null, implementationAddress 있음
+  const canonicalAddress = proxyAddress ?? implementationAddress
+
+  if (!canonicalAddress) {
     return (
       <div className="flex items-center justify-center h-full text-gray-700 text-sm">
         배포 완료 후 결과가 표시됩니다
@@ -56,21 +60,23 @@ export default function ResultPanel({
       {/* 배포 주소 */}
       <div className="space-y-3">
         <div>
-          <p className="text-xs text-gray-500 mb-1">컨트랙트 주소 (Canonical)</p>
+          <p className="text-xs text-gray-500 mb-1">
+            컨트랙트 주소{proxyAddress ? ' (Proxy)' : ''}
+          </p>
           <div className="flex items-center gap-1">
             <a
-              href={explorerAddressUrl(proxyAddress)}
+              href={explorerAddressUrl(canonicalAddress)}
               target="_blank"
               rel="noopener noreferrer"
               className="text-blue-400 hover:text-blue-300 font-mono text-xs break-all"
             >
-              {proxyAddress}
+              {canonicalAddress}
             </a>
-            <CopyButton text={proxyAddress} />
+            <CopyButton text={canonicalAddress} />
           </div>
         </div>
 
-        {implementationAddress && (
+        {proxyAddress && implementationAddress && (
           <div>
             <p className="text-xs text-gray-500 mb-1">Implementation 주소</p>
             <div className="flex items-center gap-1">
