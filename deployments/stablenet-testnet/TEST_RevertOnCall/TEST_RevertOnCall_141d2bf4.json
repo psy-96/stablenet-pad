@@ -1,0 +1,59 @@
+{
+  "contractName": "TEST_RevertOnCall",
+  "type": "TEST_RevertOnCall",
+  "network": "stablenet-testnet",
+  "chainId": 8283,
+  "proxyAddress": null,
+  "implementationAddress": "0x141d2bf44d03390085cdf99f34ae29276fb71f07",
+  "previousProxyAddress": null,
+  "abi": [
+    {
+      "inputs": [],
+      "stateMutability": "nonpayable",
+      "type": "constructor"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_value",
+          "type": "uint256"
+        }
+      ],
+      "name": "safeSetValue",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "uint256",
+          "name": "_value",
+          "type": "uint256"
+        }
+      ],
+      "name": "setValue",
+      "outputs": [],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    },
+    {
+      "inputs": [],
+      "name": "value",
+      "outputs": [
+        {
+          "internalType": "uint256",
+          "name": "",
+          "type": "uint256"
+        }
+      ],
+      "stateMutability": "view",
+      "type": "function"
+    }
+  ],
+  "txHash": "0x02c2c0aa1a8121aeca8ec8d78aef7c8de17f6eb9274e7d3e90275b1312795f66",
+  "blockNumber": 6048446,
+  "deployedAt": "2026-04-09T07:44:11.730Z",
+  "deployer": "0x069331CB8ADC2E376f0A2F8a6CDDee4f021e07cD"
+}
