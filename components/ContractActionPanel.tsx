@@ -45,11 +45,13 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
     return true
   }
 
+  const contractAddress = deployment.proxyAddress ?? deployment.implementationAddress
+
   async function handleExecute() {
-    if (!selectedFn || !deployment.proxyAddress) return
+    if (!selectedFn || !contractAddress) return
     await executeAction({
       deploymentRowId: deployment.id,
-      proxyAddress: deployment.proxyAddress,
+      proxyAddress: contractAddress,
       abi: deployment.abi!,
       fn: selectedFn,
       formValues,
@@ -63,7 +65,7 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
         <div>
           <h2 className="text-sm font-medium text-gray-300">{deployment.contractName}</h2>
           <p className="text-xs text-gray-600 font-mono mt-0.5">
-            {deployment.proxyAddress?.slice(0, 10)}...
+            {contractAddress?.slice(0, 10)}...
           </p>
         </div>
         <button
