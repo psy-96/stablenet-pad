@@ -38,6 +38,10 @@ export async function POST(req: NextRequest) {
       pollingInterval: 3_000,
     })
 
+    if (receipt.status === 'reverted') {
+      throw new Error('트랜잭션이 실패했습니다 (status: 0x0) — 컨트랙트 배포 실패')
+    }
+
     if (!receipt.contractAddress) {
       throw new Error('컨트랙트 주소를 receipt에서 찾을 수 없습니다')
     }

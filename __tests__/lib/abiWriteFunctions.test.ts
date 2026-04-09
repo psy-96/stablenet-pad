@@ -13,6 +13,8 @@ const SAMPLE_ABI = [
   { type: 'function', name: 'setConfig', stateMutability: 'nonpayable', inputs: [{ name: 'cfg', type: 'tuple' }] },
   { type: 'function', name: 'deposit', stateMutability: 'payable', inputs: [] },
   { type: 'function', name: 'upgradeTo', stateMutability: 'nonpayable', inputs: [{ name: 'impl', type: 'address' }] },
+  { type: 'function', name: 'swap', stateMutability: 'nonpayable', inputs: [{ name: 'path', type: 'address[]' }, { name: 'amounts', type: 'uint256[]' }] },
+  { type: 'function', name: 'setTupleArr', stateMutability: 'nonpayable', inputs: [{ name: 'cfgs', type: 'tuple[]' }] },
   { type: 'event', name: 'Transfer', inputs: [] },
 ]
 
@@ -103,6 +105,29 @@ describe('abiWriteFunctionsToActions', () => {
 
   it('handles empty ABI', () => {
     expect(abiWriteFunctionsToActions([])).toHaveLength(0)
+  })
+
+  it('classifies address[] as array with arrayItemSolType=address', () => {
+    const fns = abiWriteFunctionsToActions(SAMPLE_ABI)
+    const swapFn = fns.find((f) => f.name === 'swap')!
+    expect(swapFn.params[0]).toMatchObject({ key: 'path', solType: 'address[]', type: 'array', arrayItemSolType: 'address' })
+  })
+
+  it('classifies uint256[] as array with arrayItemSolType=uint256', () => {
+    const fns = abiWriteFunctionsToActions(SAMPLE_ABI)
+    const swapFn = fns.find((f) => f.name === 'swap')!
+    expect(swapFn.params[1]).toMatchObject({ key: 'amounts', solType: 'uint256[]', type: 'array', arrayItemSolType: 'uint256' })
+  })
+
+  it('classifies tuple[] as disabled (complex array)', () => {
+    const fns = abiWriteFunctionsToActions(SAMPLE_ABI)
+    const fn = fns.find((f) => f.name === 'setTupleArr')!
+    expect(fn.params[0]).toMatchObject({ solType: 'tuple[]', type: 'disabled' })
+  })
+
+  it('swap() appears in write functions list', () => {
+    const fns = abiWriteFunctionsToActions(SAMPLE_ABI)
+    expect(fns.find((f) => f.name === 'swap')).toBeDefined()
   })
 
   it('classifies uint8, uint24, int128 variants as uint256 type', () => {

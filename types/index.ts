@@ -113,9 +113,10 @@ export interface ConfirmResponse {
  * - uint256 : uint*, int* → number input (BigInt 변환)
  * - bool    : bool → checkbox
  * - raw-hex : bytes, bytes32 등 → hex text input
+ * - array   : address[], uint256[] 등 단일 타입 배열 → 동적 항목 추가 UI
  * - disabled: tuple, tuple[], 기타 복합 타입 → UI 비활성
  */
-export type ActionParamType = 'text' | 'address' | 'uint256' | 'bool' | 'raw-hex' | 'disabled'
+export type ActionParamType = 'text' | 'address' | 'uint256' | 'bool' | 'raw-hex' | 'array' | 'disabled'
 
 export interface ActionParam {
   key: string
@@ -123,6 +124,8 @@ export interface ActionParam {
   /** 원본 Solidity 타입 — 인코딩 시 사용 */
   solType: string
   type: ActionParamType
+  /** array 타입일 때 항목의 Solidity 타입 (e.g. 'address', 'uint256') */
+  arrayItemSolType?: string
 }
 
 export interface ActionFunctionDef {

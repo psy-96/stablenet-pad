@@ -94,8 +94,15 @@ function classifyAbiType(solType: string): ActionParamType {
   if (solType === 'bool') return 'bool'
   if (/^u?int(\d+)?$/.test(solType)) return 'uint256'
   if (/^bytes(\d+)?$/.test(solType)) return 'raw-hex'
-  // tuple, tuple[], address[], uint256[], 기타 복합 타입
+  // 단일 원소 타입 배열: address[], uint256[], uint24[], bool[] 등
+  if (/^(address|bool|string|u?int(\d+)?|bytes(\d+)?)(\[\d*\])+$/.test(solType)) return 'array'
+  // tuple, tuple[], 기타 복합 타입
   return 'disabled'
+}
+
+/** 배열 타입에서 항목 타입 추출 (예: "address[]" → "address", "uint256[][]" → "uint256[]") */
+function arrayItemType(solType: string): string {
+  return solType.replace(/\[\d*\]$/, '')
 }
 
 /**
@@ -116,12 +123,16 @@ export function abiWriteFunctionsToActions(abi: AbiItem[]): ActionFunctionDef[] 
     const mut = item.stateMutability
     if (mut !== 'nonpayable' && mut !== 'payable') continue
 
-    const params: ActionParam[] = (item.inputs ?? []).map((input) => ({
-      key: input.name,
-      label: input.name,
-      solType: input.type,
-      type: classifyAbiType(input.type),
-    }))
+    const params: ActionParam[] = (item.inputs ?? []).map((input) => {
+      const paramType = classifyAbiType(input.type)
+      return {
+        key: input.name,
+        label: input.name,
+        solType: input.type,
+        type: paramType,
+        ...(paramType === 'array' ? { arrayItemSolType: arrayItemType(input.type) } : {}),
+      }
+    })
 
     const paramSig = (item.inputs ?? []).map((i) => i.type).join(',')
     result.push({

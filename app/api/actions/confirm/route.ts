@@ -10,6 +10,7 @@ import type { ActionConfirmRequest, ActionConfirmResponse, ParsedEvent } from '@
 /**
  * POST /api/actions/confirm
  * 운영 액션(write 함수 호출) 이력을 Supabase contract_actions 테이블에 저장한다.
+ * - receipt.status === 'reverted' 이면 status: 'failed' 로 저장 후 에러 반환
  * - receipt.logs를 deployment ABI로 디코딩해 events 컬럼에 함께 저장
  *
  * Request:  ActionConfirmRequest
@@ -35,14 +36,11 @@ export async function POST(req: NextRequest) {
   // deploymentRowId가 있으면 존재 여부 확인 + ABI 조회
   let deploymentAbi: Abi | null = null
   if (deploymentRowId) {
-    const { data: dep, error: depError } = await supabaseServer
+    const { data: dep } = await supabaseServer
       .from('deployments')
       .select('id, abi')
       .eq('id', deploymentRowId)
       .single()
-
-    console.log('[confirm] deploymentRowId:', deploymentRowId)
-    console.log('[confirm] dep found:', Boolean(dep), 'dep.abi type:', dep ? typeof dep.abi : 'N/A', 'depError:', depError?.message)
 
     if (!dep) {
       return NextResponse.json(
@@ -52,44 +50,25 @@ export async function POST(req: NextRequest) {
     }
     if (dep.abi) {
       deploymentAbi = dep.abi as Abi
-      console.log('[confirm] deploymentAbi loaded, length:', (dep.abi as unknown[]).length)
-    } else {
-      console.log('[confirm] dep.abi is null/undefined — skipping event parse')
     }
   }
 
-  // receipt.logs에서 이벤트 파싱
+  // receipt 조회 — status 확인 + 이벤트 파싱
+  let txStatus: 'success' | 'failed' = 'success'
   let events: ParsedEvent[] = []
-  if (deploymentAbi) {
-    try {
-      // viem getTransactionReceipt
-      const receipt = await viemPublicClient.getTransactionReceipt({
-        hash: txHash as Hash,
-      })
-      console.log('[confirm] viem receipt.logs.length:', receipt.logs.length)
-      console.log('[confirm] viem receipt (full):', JSON.stringify(receipt, (_k, v) =>
-        typeof v === 'bigint' ? v.toString() : v
-      ))
 
-      // raw eth_getTransactionReceipt — viem 파싱 없이 RPC 응답 직접 확인
-      const rpcUrl = process.env.NEXT_PUBLIC_RPC_URL ?? 'https://api.test.stablenet.network'
-      const rawRes = await fetch(rpcUrl, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          jsonrpc: '2.0', id: 1,
-          method: 'eth_getTransactionReceipt',
-          params: [txHash],
-        }),
-      })
-      const rawJson = (await rawRes.json()) as unknown
-      console.log('[confirm] raw eth_getTransactionReceipt:', JSON.stringify(rawJson))
+  try {
+    const receipt = await viemPublicClient.getTransactionReceipt({
+      hash: txHash as Hash,
+    })
 
+    if (receipt.status === 'reverted') {
+      txStatus = 'failed'
+    } else if (deploymentAbi) {
       events = parseReceiptEvents([...receipt.logs], deploymentAbi)
-      console.log('[confirm] parsed events.length:', events.length)
-    } catch (err) {
-      console.log('[confirm] receipt/parse error:', err instanceof Error ? err.message : String(err))
     }
+  } catch {
+    // receipt 조회 실패는 경고만 — 온체인 실행 결과는 이미 확정됨
   }
 
   const { data, error } = await supabaseServer
@@ -102,7 +81,7 @@ export async function POST(req: NextRequest) {
       block_number: blockNumber,
       executor,
       network: 'stablenet-testnet',
-      status: 'success',
+      status: txStatus,
       events: events.length > 0 ? events : null,
     })
     .select('id')
@@ -114,6 +93,13 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       { success: false, error: error.message } satisfies { success: false; error: string },
       { status: 500 }
+    )
+  }
+
+  if (txStatus === 'failed') {
+    return NextResponse.json(
+      { success: false, error: '트랜잭션이 실패했습니다 (status: 0x0)' } satisfies { success: false; error: string },
+      { status: 400 }
     )
   }
 

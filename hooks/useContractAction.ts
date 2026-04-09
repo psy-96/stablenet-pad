@@ -30,6 +30,18 @@ let actionLogCounter = 0
 
 /** ABI 인코딩을 위한 타입 변환 */
 function encodeArg(solType: string, val: string): unknown {
+  // 배열 타입: JSON 직렬화된 string[] → 항목별 재귀 변환
+  if (/\[\d*\]$/.test(solType)) {
+    const itemType = solType.replace(/\[\d*\]$/, '')
+    let items: string[]
+    try {
+      items = JSON.parse(val) as string[]
+    } catch {
+      throw new Error(`배열 파싱 실패 (${solType}): JSON 형식이어야 합니다`)
+    }
+    if (!Array.isArray(items)) throw new Error(`배열 파싱 실패 (${solType})`)
+    return items.map((item) => encodeArg(itemType, String(item)))
+  }
   if (val === '' || val === undefined) {
     throw new Error(`파라미터 값 누락: ${solType} 타입 필드`)
   }

@@ -38,6 +38,13 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
       if (p.type === 'disabled') return false
       const val = formValues[p.key] ?? ''
       if (p.type === 'bool') continue // checkbox always has a value
+      if (p.type === 'array') {
+        try {
+          const items = JSON.parse(val || '[]') as unknown[]
+          if (!Array.isArray(items)) return false
+        } catch { return false }
+        continue
+      }
       if (!val.trim()) return false
       if (p.type === 'address' && (val.length !== 42 || !val.startsWith('0x'))) return false
       if (p.type === 'uint256' && !/^\d+$/.test(val)) return false
@@ -118,6 +125,57 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
 
               {selectedFn.params.map((p) => {
                 const val = formValues[p.key] ?? ''
+
+                if (p.type === 'array') {
+                  let items: string[] = []
+                  try { items = JSON.parse(formValues[p.key] || '[]') as string[] } catch { items = [] }
+                  const itemPlaceholder = p.arrayItemSolType === 'address' ? '0x...' : '값 입력'
+                  const isAddressItem = p.arrayItemSolType === 'address'
+                  function setItems(next: string[]) {
+                    setValue(p.key, JSON.stringify(next))
+                  }
+                  return (
+                    <div key={p.key}>
+                      <label className="block text-xs text-gray-400 mb-1">
+                        {p.label} <span className="text-gray-600">({p.solType})</span>
+                      </label>
+                      <div className="flex flex-col gap-1">
+                        {items.map((item, idx) => {
+                          const invalid = isAddressItem && item !== '' && (!item.startsWith('0x') || item.length !== 42)
+                          return (
+                            <div key={idx} className="flex gap-1 items-center">
+                              <input
+                                type="text"
+                                value={item}
+                                onChange={(e) => {
+                                  const next = [...items]
+                                  next[idx] = e.target.value
+                                  setItems(next)
+                                }}
+                                placeholder={itemPlaceholder}
+                                className={`flex-1 bg-gray-800 border rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 font-mono ${invalid ? 'border-red-700' : 'border-gray-700'}`}
+                              />
+                              <button
+                                type="button"
+                                onClick={() => setItems(items.filter((_, i) => i !== idx))}
+                                className="text-gray-600 hover:text-red-400 text-xs px-1.5 transition-colors"
+                              >
+                                ✕
+                              </button>
+                            </div>
+                          )
+                        })}
+                        <button
+                          type="button"
+                          onClick={() => setItems([...items, ''])}
+                          className="text-xs text-blue-500 hover:text-blue-400 text-left transition-colors"
+                        >
+                          + 항목 추가
+                        </button>
+                      </div>
+                    </div>
+                  )
+                }
 
                 if (p.type === 'disabled') {
                   return (
