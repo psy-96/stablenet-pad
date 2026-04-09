@@ -152,7 +152,7 @@ const ABI_TYPE_MAP: Record<string, TemplateParam['type']> = {
  * - 지원 외 타입(bytes32, bool, tuple 등) 포함 시: error 반환 → 배포 불가
  */
 export function abiInputsToTemplateParams(
-  abi: { type: string; name: string; inputs?: { name: string; type: string }[] }[]
+  abi: { type: string; name?: string; inputs?: { name: string; type: string }[] }[]
 ): { params: TemplateParam[] } | { error: string } {
   const initFn = abi.find((item) => item.type === 'function' && item.name === 'initialize')
 
@@ -162,6 +162,40 @@ export function abiInputsToTemplateParams(
 
   const params: TemplateParam[] = []
   for (const input of initFn.inputs) {
+    const mappedType = ABI_TYPE_MAP[input.type]
+    if (!mappedType) {
+      return {
+        error: `지원하지 않는 파라미터 타입 포함: ${input.type} (지원: string, address, uint256, uint24, uint8)`,
+      }
+    }
+    params.push({
+      key: input.name,
+      label: input.name,
+      type: mappedType,
+    })
+  }
+
+  return { params }
+}
+
+/**
+ * 컴파일된 ABI의 constructor inputs를 ContractParamsForm이 렌더링할 수 있는
+ * TemplateParam[] 으로 변환한다. Proxy OFF 배포 시 사용.
+ *
+ * - constructor 없거나 inputs 없으면: 빈 배열 반환
+ * - 지원 외 타입 포함 시: error 반환 → 배포 불가
+ */
+export function abiConstructorToTemplateParams(
+  abi: { type: string; name?: string; inputs?: { name: string; type: string }[] }[]
+): { params: TemplateParam[] } | { error: string } {
+  const ctorItem = abi.find((item) => item.type === 'constructor')
+
+  if (!ctorItem || !ctorItem.inputs || ctorItem.inputs.length === 0) {
+    return { params: [] }
+  }
+
+  const params: TemplateParam[] = []
+  for (const input of ctorItem.inputs) {
     const mappedType = ABI_TYPE_MAP[input.type]
     if (!mappedType) {
       return {

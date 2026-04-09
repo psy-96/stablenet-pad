@@ -1,8 +1,8 @@
 'use client'
 
-import { useState, useRef, useCallback, useEffect } from 'react'
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react'
 import type { ContractParams } from '@/types'
-import { abiInputsToTemplateParams } from '@/lib/template-registry'
+import { abiInputsToTemplateParams, abiConstructorToTemplateParams } from '@/lib/template-registry'
 import ContractParamsForm from './ContractParamsForm'
 
 const MAX_FILE_SIZE = 1024 * 1024 // 1MB
@@ -12,7 +12,7 @@ type State = 'upload' | 'compiling-preview' | 'params' | 'deploying' | 'done'
 
 interface AbiItem {
   type: string
-  name: string
+  name?: string
   inputs?: { name: string; type: string }[]
 }
 
@@ -36,7 +36,7 @@ export default function GenericDeploySection({ onDeploy, isDeploying, deployerAd
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   // preview compile 결과
-  const [templateParams, setTemplateParams] = useState<ReturnType<typeof abiInputsToTemplateParams> | null>(null)
+  const [compiledAbi, setCompiledAbi] = useState<AbiItem[] | null>(null)
   const [previewLogs, setPreviewLogs] = useState<string[]>([])
   const [previewError, setPreviewError] = useState<string | null>(null)
 
@@ -89,7 +89,7 @@ export default function GenericDeploySection({ onDeploy, isDeploying, deployerAd
     setState('upload')
     setPreviewLogs([])
     setPreviewError(null)
-    setTemplateParams(null)
+    setCompiledAbi(null)
     setFormParams(null)
     setFormValid(false)
   }
@@ -147,15 +147,9 @@ export default function GenericDeploySection({ onDeploy, isDeploying, deployerAd
       }
 
       const compiled = (await deployRes.json()) as { abi: AbiItem[] }
-      const result = abiInputsToTemplateParams(compiled.abi)
-
-      if ('error' in result) {
-        throw new Error(result.error)
-      }
-
       const initFn = compiled.abi.find((item) => item.type === 'function' && item.name === 'initialize')
       setHasInitializer(Boolean(initFn))
-      setTemplateParams(result)
+      setCompiledAbi(compiled.abi)
       setPreviewLogs((prev) => [...prev, '컴파일 완료 ✓'])
       setState('params')
     } catch (err) {
@@ -182,7 +176,22 @@ export default function GenericDeploySection({ onDeploy, isDeploying, deployerAd
     })
   }
 
-  const paramsResult = templateParams && !('error' in templateParams) ? templateParams : null
+  // useProxy 토글 시 폼 초기화 (params 구조 변경)
+  useEffect(() => {
+    setFormParams(null)
+    setFormValid(false)
+  }, [useProxy])
+
+  // Proxy ON → initialize() 기준, Proxy OFF → constructor 기준
+  const paramsComputed = useMemo(() => {
+    if (!compiledAbi) return null
+    return useProxy
+      ? abiInputsToTemplateParams(compiledAbi)
+      : abiConstructorToTemplateParams(compiledAbi)
+  }, [compiledAbi, useProxy])
+
+  const paramsResult = paramsComputed && !('error' in paramsComputed) ? paramsComputed : null
+  const paramsTypeError = paramsComputed && 'error' in paramsComputed ? paramsComputed.error : null
   const noParams = paramsResult?.params.length === 0
   const canStartPreview = Boolean(file && !fileError && deployerAddress && state === 'upload')
   const canDeploy = Boolean(
@@ -280,14 +289,18 @@ export default function GenericDeploySection({ onDeploy, isDeploying, deployerAd
 
           {/* read-only wrapper for deploying/done */}
           <div className={state !== 'params' ? 'pointer-events-none opacity-60' : ''}>
-            {paramsResult.params.length > 0 ? (
+            {paramsTypeError ? (
+              <p className="text-xs text-red-400 bg-red-900/10 border border-red-800 rounded-lg p-3">
+                {paramsTypeError}
+              </p>
+            ) : paramsResult && paramsResult.params.length > 0 ? (
               <ContractParamsForm
                 params={paramsResult.params}
                 onChange={(p, v) => { setFormParams(p); setFormValid(v) }}
               />
             ) : (
               <p className="text-xs text-gray-500 bg-gray-800 rounded-lg p-3">
-                initialize() 파라미터 없음 — 추가 입력 불필요
+                {useProxy ? 'initialize()' : 'constructor'} 파라미터 없음 — 추가 입력 불필요
               </p>
             )}
 

@@ -3,6 +3,7 @@ import {
   TEMPLATE_REGISTRY,
   getTemplateById,
   abiInputsToTemplateParams,
+  abiConstructorToTemplateParams,
   type TemplateDefinition,
   type TemplateParam,
 } from '@/lib/template-registry'
@@ -134,6 +135,80 @@ describe('abiInputsToTemplateParams', () => {
     expect('params' in result).toBe(true)
     if (!('params' in result)) return
     expect(result.params[0].key).toBe('_owner')
+  })
+})
+
+describe('abiConstructorToTemplateParams', () => {
+  const makeAbi = (inputs: { name: string; type: string }[]) => [
+    { type: 'constructor', inputs },
+  ]
+
+  it('parses address constructor param (UniswapV2Factory scenario)', () => {
+    const abi = makeAbi([{ name: '_feeToSetter', type: 'address' }])
+    const result = abiConstructorToTemplateParams(abi)
+    expect('params' in result).toBe(true)
+    if (!('params' in result)) return
+    expect(result.params).toHaveLength(1)
+    expect(result.params[0]).toMatchObject({ key: '_feeToSetter', type: 'address' })
+  })
+
+  it('parses multiple supported constructor params', () => {
+    const abi = makeAbi([
+      { name: 'owner', type: 'address' },
+      { name: 'supply', type: 'uint256' },
+      { name: 'name', type: 'string' },
+    ])
+    const result = abiConstructorToTemplateParams(abi)
+    expect('params' in result).toBe(true)
+    if (!('params' in result)) return
+    expect(result.params).toHaveLength(3)
+    expect(result.params[0]).toMatchObject({ key: 'owner', type: 'address' })
+    expect(result.params[1]).toMatchObject({ key: 'supply', type: 'uint256' })
+    expect(result.params[2]).toMatchObject({ key: 'name', type: 'text' })
+  })
+
+  it('returns empty params when no constructor in ABI', () => {
+    const abi = [{ type: 'function', name: 'foo', inputs: [] }]
+    const result = abiConstructorToTemplateParams(abi)
+    expect('params' in result).toBe(true)
+    if (!('params' in result)) return
+    expect(result.params).toHaveLength(0)
+  })
+
+  it('returns empty params when constructor has no inputs', () => {
+    const result = abiConstructorToTemplateParams(makeAbi([]))
+    expect('params' in result).toBe(true)
+    if (!('params' in result)) return
+    expect(result.params).toHaveLength(0)
+  })
+
+  it('returns error for unsupported type (bytes32)', () => {
+    const abi = makeAbi([{ name: 'data', type: 'bytes32' }])
+    const result = abiConstructorToTemplateParams(abi)
+    expect('error' in result).toBe(true)
+    if (!('error' in result)) return
+    expect(result.error).toContain('bytes32')
+  })
+
+  it('returns error for tuple type', () => {
+    const abi = makeAbi([{ name: 'cfg', type: 'tuple' }])
+    const result = abiConstructorToTemplateParams(abi)
+    expect('error' in result).toBe(true)
+  })
+
+  it('returns empty params for empty ABI', () => {
+    const result = abiConstructorToTemplateParams([])
+    expect('params' in result).toBe(true)
+    if (!('params' in result)) return
+    expect(result.params).toHaveLength(0)
+  })
+
+  it('maps uint24/uint8 to uint256 type', () => {
+    const abi = makeAbi([{ name: 'fee', type: 'uint24' }])
+    const result = abiConstructorToTemplateParams(abi)
+    expect('params' in result).toBe(true)
+    if (!('params' in result)) return
+    expect(result.params[0]).toMatchObject({ key: 'fee', type: 'uint256' })
   })
 })
 
