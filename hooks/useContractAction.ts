@@ -148,16 +148,19 @@ export function useContractAction(): UseContractActionResult {
           body: JSON.stringify(confirmBody),
         })
 
-        if (!confirmRes.ok) {
-          // 액션은 이미 온체인 완료 — 경고만 표시
+        const confirmJson = (await confirmRes.json()) as ActionConfirmResponse | { success: false; error: string }
+
+        if (confirmRes.status === 400) {
+          // tx revert — 실패로 처리
+          const errMsg = 'error' in confirmJson ? confirmJson.error : '트랜잭션 실패 (revert)'
+          throw new Error(errMsg)
+        } else if (!confirmRes.ok) {
+          // Supabase 등 서버 오류 — tx는 성공, 이력 저장만 실패
           addLog('액션 이력 저장 실패 (온체인 실행은 완료됨)', 'error')
         } else {
-          const result = (await confirmRes.json()) as ActionConfirmResponse
-          if (result.success) {
-            addLog('이력 저장 완료', 'success')
-            if (result.events && result.events.length > 0) {
-              setLastEvents(result.events)
-            }
+          const result = confirmJson as ActionConfirmResponse
+          if (result.events && result.events.length > 0) {
+            setLastEvents(result.events)
           }
         }
 
