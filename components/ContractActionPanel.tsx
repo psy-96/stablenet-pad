@@ -131,9 +131,7 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
                   try { items = JSON.parse(formValues[p.key] || '[]') as string[] } catch { items = [] }
                   const itemPlaceholder = p.arrayItemSolType === 'address' ? '0x...' : '값 입력'
                   const isAddressItem = p.arrayItemSolType === 'address'
-                  function setItems(next: string[]) {
-                    setValue(p.key, JSON.stringify(next))
-                  }
+                  const setItems = (next: string[]) => setValue(p.key, JSON.stringify(next))
                   return (
                     <div key={p.key}>
                       <label className="block text-xs text-gray-400 mb-1">
