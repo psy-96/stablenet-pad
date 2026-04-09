@@ -144,8 +144,16 @@ export interface ActionConfirmRequest {
   executor: string
 }
 
+// 트랜잭션 receipt에서 파싱한 이벤트 (표시용)
+export interface ParsedEvent {
+  name: string
+  /** 모든 값을 string으로 직렬화한 args (BigInt 포함) */
+  args: Record<string, string>
+}
+
 // POST /api/actions/confirm 응답
 export interface ActionConfirmResponse {
   success: boolean
   actionId: string
+  events?: ParsedEvent[]
 }

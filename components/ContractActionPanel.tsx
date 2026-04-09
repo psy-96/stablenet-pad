@@ -4,6 +4,7 @@ import { useState, useMemo } from 'react'
 import type { DeploymentResult, ActionFunctionDef } from '@/types'
 import { abiWriteFunctionsToActions } from '@/lib/template-registry'
 import { useContractAction } from '@/hooks/useContractAction'
+import { explorerAddressUrl } from '@/lib/stablenet'
 
 interface Props {
   deployment: DeploymentResult
@@ -14,7 +15,7 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
   const [selectedFn, setSelectedFn] = useState<ActionFunctionDef | null>(null)
   const [formValues, setFormValues] = useState<Record<string, string>>({})
 
-  const { actionLogs, isExecuting, executeAction, clearActionLogs } = useContractAction()
+  const { actionLogs, isExecuting, lastEvents, executeAction, clearActionLogs } = useContractAction()
 
   const writeFunctions = useMemo(() => {
     if (!deployment.abi) return []
@@ -252,6 +253,42 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
                   >
                     {log.message}
                   </p>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Parsed Events */}
+          {lastEvents && lastEvents.length > 0 && (
+            <div className="border-t border-gray-800 pt-3">
+              <p className="text-xs text-gray-500 mb-2">이벤트</p>
+              <div className="flex flex-col gap-2">
+                {lastEvents.map((evt, i) => (
+                  <div key={i} className="bg-gray-800 rounded-lg px-3 py-2">
+                    <p className="text-xs text-blue-400 font-mono mb-1">{evt.name}</p>
+                    <div className="flex flex-col gap-0.5">
+                      {Object.entries(evt.args).map(([k, v]) => {
+                        const isAddress = /^0x[0-9a-fA-F]{40}$/.test(v)
+                        return (
+                          <div key={k} className="flex gap-2 text-xs font-mono">
+                            <span className="text-gray-500 shrink-0">{k}:</span>
+                            {isAddress ? (
+                              <a
+                                href={explorerAddressUrl(v)}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-blue-400 hover:text-blue-300 truncate transition-colors"
+                              >
+                                {v}
+                              </a>
+                            ) : (
+                              <span className="text-gray-300 break-all">{v}</span>
+                            )}
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
                 ))}
               </div>
             </div>

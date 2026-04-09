@@ -3,7 +3,7 @@
 import { useState, useCallback } from 'react'
 import { useAccount, useSendTransaction } from 'wagmi'
 import { encodeFunctionData, type Abi } from 'viem'
-import type { ActionFunctionDef, ActionConfirmRequest, ActionConfirmResponse } from '@/types'
+import type { ActionFunctionDef, ActionConfirmRequest, ActionConfirmResponse, ParsedEvent } from '@/types'
 
 export type ActionLogEntry = {
   id: number
@@ -14,6 +14,7 @@ export type ActionLogEntry = {
 interface UseContractActionResult {
   actionLogs: ActionLogEntry[]
   isExecuting: boolean
+  lastEvents: ParsedEvent[] | null
   executeAction: (params: {
     deploymentRowId: string
     proxyAddress: string
@@ -44,12 +45,16 @@ export function useContractAction(): UseContractActionResult {
 
   const [actionLogs, setActionLogs] = useState<ActionLogEntry[]>([])
   const [isExecuting, setIsExecuting] = useState(false)
+  const [lastEvents, setLastEvents] = useState<ParsedEvent[] | null>(null)
 
   function addLog(message: string, type: ActionLogEntry['type'] = 'info') {
     setActionLogs((prev) => [...prev, { id: ++actionLogCounter, message, type }])
   }
 
-  const clearActionLogs = useCallback(() => setActionLogs([]), [])
+  const clearActionLogs = useCallback(() => {
+    setActionLogs([])
+    setLastEvents(null)
+  }, [])
 
   const executeAction = useCallback(
     async ({
@@ -138,6 +143,9 @@ export function useContractAction(): UseContractActionResult {
           const result = (await confirmRes.json()) as ActionConfirmResponse
           if (result.success) {
             addLog('이력 저장 완료', 'success')
+            if (result.events && result.events.length > 0) {
+              setLastEvents(result.events)
+            }
           }
         }
 
@@ -152,5 +160,5 @@ export function useContractAction(): UseContractActionResult {
     [address, sendTransactionAsync, clearActionLogs]
   )
 
-  return { actionLogs, isExecuting, executeAction, clearActionLogs }
+  return { actionLogs, isExecuting, lastEvents, executeAction, clearActionLogs }
 }

@@ -1,15 +1,19 @@
 export const runtime = 'nodejs'
 
 import { NextRequest, NextResponse } from 'next/server'
+import { type Hash, type Abi } from 'viem'
 import { supabaseServer } from '@/lib/supabase/server'
-import type { ActionConfirmRequest, ActionConfirmResponse } from '@/types'
+import { viemPublicClient } from '@/lib/viem-server'
+import { parseReceiptEvents } from '@/lib/parse-events'
+import type { ActionConfirmRequest, ActionConfirmResponse, ParsedEvent } from '@/types'
 
 /**
  * POST /api/actions/confirm
  * 운영 액션(write 함수 호출) 이력을 Supabase contract_actions 테이블에 저장한다.
+ * - receipt.logs를 deployment ABI로 디코딩해 events 컬럼에 함께 저장
  *
  * Request:  ActionConfirmRequest
- * Response: ActionConfirmResponse
+ * Response: ActionConfirmResponse (events 포함)
  */
 export async function POST(req: NextRequest) {
   let body: ActionConfirmRequest
@@ -28,11 +32,12 @@ export async function POST(req: NextRequest) {
     )
   }
 
-  // deploymentRowId가 있으면 존재 여부 확인
+  // deploymentRowId가 있으면 존재 여부 확인 + ABI 조회
+  let deploymentAbi: Abi | null = null
   if (deploymentRowId) {
     const { data: dep } = await supabaseServer
       .from('deployments')
-      .select('id')
+      .select('id, abi')
       .eq('id', deploymentRowId)
       .single()
 
@@ -41,6 +46,22 @@ export async function POST(req: NextRequest) {
         { error: `deployment ${deploymentRowId} 을 찾을 수 없습니다` },
         { status: 400 }
       )
+    }
+    if (dep.abi) {
+      deploymentAbi = dep.abi as Abi
+    }
+  }
+
+  // receipt.logs에서 이벤트 파싱
+  let events: ParsedEvent[] = []
+  if (deploymentAbi) {
+    try {
+      const receipt = await viemPublicClient.getTransactionReceipt({
+        hash: txHash as Hash,
+      })
+      events = parseReceiptEvents([...receipt.logs], deploymentAbi)
+    } catch {
+      // 이벤트 파싱 실패는 치명적이지 않음 — 빈 배열로 계속
     }
   }
 
@@ -55,6 +76,7 @@ export async function POST(req: NextRequest) {
       executor,
       network: 'stablenet-testnet',
       status: 'success',
+      events: events.length > 0 ? events : null,
     })
     .select('id')
     .single()
@@ -71,5 +93,6 @@ export async function POST(req: NextRequest) {
   return NextResponse.json({
     success: true,
     actionId: (data as { id: string }).id,
+    events,
   } satisfies ActionConfirmResponse)
 }
