@@ -20,9 +20,13 @@ export function serializeEventArgs(
 
 /** receipt.logs → ParsedEvent[]. ABI와 일치하지 않는 로그는 무시. */
 export function parseReceiptEvents(logs: Log[], abi: Abi): ParsedEvent[] {
-  return logs.flatMap((log) => {
+  console.log('[parseReceiptEvents] logs.length:', logs.length)
+  console.log('[parseReceiptEvents] abi event count:', abi.filter((item) => (item as { type: string }).type === 'event').length)
+
+  return logs.flatMap((log, i) => {
     try {
       const decoded = decodeEventLog({ abi, data: log.data, topics: log.topics })
+      console.log(`[parseReceiptEvents] log[${i}] decoded:`, decoded.eventName)
       if (!decoded.eventName) return []
       return [
         {
@@ -30,7 +34,8 @@ export function parseReceiptEvents(logs: Log[], abi: Abi): ParsedEvent[] {
           args: serializeEventArgs(decoded.args as unknown as Record<string, unknown> | readonly unknown[] | undefined),
         },
       ]
-    } catch {
+    } catch (err) {
+      console.log(`[parseReceiptEvents] log[${i}] topic0=${log.topics[0]} error:`, err instanceof Error ? err.message : String(err))
       return []
     }
   })

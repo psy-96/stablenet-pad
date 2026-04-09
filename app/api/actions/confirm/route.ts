@@ -35,11 +35,14 @@ export async function POST(req: NextRequest) {
   // deploymentRowId가 있으면 존재 여부 확인 + ABI 조회
   let deploymentAbi: Abi | null = null
   if (deploymentRowId) {
-    const { data: dep } = await supabaseServer
+    const { data: dep, error: depError } = await supabaseServer
       .from('deployments')
       .select('id, abi')
       .eq('id', deploymentRowId)
       .single()
+
+    console.log('[confirm] deploymentRowId:', deploymentRowId)
+    console.log('[confirm] dep found:', Boolean(dep), 'dep.abi type:', dep ? typeof dep.abi : 'N/A', 'depError:', depError?.message)
 
     if (!dep) {
       return NextResponse.json(
@@ -49,6 +52,9 @@ export async function POST(req: NextRequest) {
     }
     if (dep.abi) {
       deploymentAbi = dep.abi as Abi
+      console.log('[confirm] deploymentAbi loaded, length:', (dep.abi as unknown[]).length)
+    } else {
+      console.log('[confirm] dep.abi is null/undefined — skipping event parse')
     }
   }
 
@@ -59,9 +65,11 @@ export async function POST(req: NextRequest) {
       const receipt = await viemPublicClient.getTransactionReceipt({
         hash: txHash as Hash,
       })
+      console.log('[confirm] receipt.logs.length:', receipt.logs.length)
       events = parseReceiptEvents([...receipt.logs], deploymentAbi)
-    } catch {
-      // 이벤트 파싱 실패는 치명적이지 않음 — 빈 배열로 계속
+      console.log('[confirm] parsed events.length:', events.length)
+    } catch (err) {
+      console.log('[confirm] receipt/parse error:', err instanceof Error ? err.message : String(err))
     }
   }
 
