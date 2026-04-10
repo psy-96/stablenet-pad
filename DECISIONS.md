@@ -1,0 +1,248 @@
+# DECISIONS.md — stablenet-pad 설계 결정 기록
+
+> 이 문서는 "왜 이렇게 만들었는가"를 기록한다.
+> 코드는 what, 커밋 로그는 when, 이 문서는 **why**.
+
+---
+
+## ADR-001: Hardhat을 선택한 이유 (vs Foundry)
+
+**결정:** Hardhat + ethers.js 기반 컴파일/배포 파이프라인
+
+**배경:**
+Solidity 컴파일러를 서버에서 돌려야 한다. 선택지는 Hardhat(JS 생태계)과 Foundry(Rust 바이너리).
+
+**이유:**
+- stablenet-pad의 서버가 Next.js(Node.js)이므로 Hardhat은 같은 런타임에서 프로그래매틱 호출 가능
+- Foundry는 별도 바이너리 설치 + CLI 호출이 필요 → Railway 배포 시 추가 설정 부담
+- Hardhat의 `hre.run("compile")` 한 줄로 컴파일 → ABI + bytecode 추출이 깔끔
+- 프로젝트 규모에서 Foundry의 장점(빠른 테스트, fuzzing)은 불필요
+
+**트레이드오프:**
+- Foundry가 컴파일 속도는 더 빠름 → 현재 규모에서 체감 차이 없음
+- Foundry의 forge test는 Solidity로 테스트 작성 → 우리는 컨트랙트 자체를 개발하는 게 아니라 배포 도구를 만드는 거라 해당 없음
+
+---
+
+## ADR-002: 브라우저 서명 + 서버 컴파일 분리 구조
+
+**결정:** 3단계 파이프라인 — 서버 컴파일 → 브라우저 서명 → 서버 저장
+
+**배경:**
+스마트컨트랙트 배포에는 (1) Solidity 컴파일, (2) 트랜잭션 서명, (3) 결과 저장이 필요하다.
+
+**이유:**
+- 컴파일은 무거움 → 서버에서 Hardhat으로 처리
+- 서명은 사용자의 개인키가 필요 → 브라우저의 MetaMask에서만 가능 (개인키를 서버에 보내면 안 됨)
+- 결과 저장은 Supabase + GitHub → 서버에서 처리
+
+**핵심 원칙:**
+개인키는 절대 서버를 거치지 않는다. 서버는 bytecode를 만들어주고, 브라우저가 서명해서 체인에 보내고, 서버가 결과를 기록한다.
+
+**구현 방식:**
+- 서버 → 브라우저: SSE(Server-Sent Events)로 컴파일 진행 상태 스트리밍
+- 브라우저 → 체인: viem의 `encodeDeployData` + wagmi의 `sendTransaction`
+- 브라우저 → 서버: tx hash를 `/api/deploy/confirm`에 POST → 서버가 receipt 확인 후 저장
+
+**왜 SSE인가:**
+- WebSocket 대비 단방향이라 구현 단순
+- HTTP 기반이라 Railway 배포에서 별도 설정 불필요
+- 컴파일 진행률은 서버→클라이언트 단방향이면 충분
+
+---
+
+## ADR-003: UUPS Proxy 패턴 선택
+
+**결정:** 업그레이드 가능한 컨트랙트는 UUPS(Universal Upgradeable Proxy Standard) 사용
+
+**배경:**
+프록시 패턴에는 Transparent Proxy, UUPS, Beacon 등이 있다.
+
+**이유:**
+- Transparent Proxy: 배포 시 ProxyAdmin 컨트랙트가 추가로 필요 → 3-tx 배포 (Admin + Impl + Proxy)
+- UUPS: 업그레이드 로직이 Implementation에 있어서 2-tx 배포 (Impl + Proxy)만으로 충분
+- Beacon: 동일 로직 다수 배포 시 유리 → stablenet-pad 사용 시나리오에 해당 없음
+
+**트레이드오프:**
+- UUPS는 Implementation에 `_authorizeUpgrade` 함수를 반드시 포함해야 함 → 사용자가 올리는 .sol에 이게 없으면 프록시 배포 불가
+- 현재는 번들 템플릿(ERC20 등)에만 UUPS 적용, 사용자 업로드 .sol은 Proxy ON/OFF 선택 가능
+
+---
+
+## ADR-004: constructor vs initialize 이원화
+
+**결정:** Proxy OFF → constructor, Proxy ON → initialize()
+
+**배경:**
+프록시 패턴에서는 constructor가 실행되지 않는다. 프록시가 delegatecall로 Implementation의 로직을 실행하므로, 상태 초기화는 별도의 `initialize()` 함수로 해야 한다.
+
+**이유:**
+- ERC20 같은 표준을 직접 배포할 때는 constructor가 자연스러움
+- 같은 ERC20을 프록시로 배포하면 constructor 파라미터가 무시됨 → initialize()로 전환 필요
+- 사용자가 이 차이를 몰라도 되게, Proxy ON/OFF 토글에 따라 UI가 자동 전환
+
+**학습 포인트:**
+"ERC20은 하나의 스펙이다"라고 생각하기 쉽지만, 실제로는 constructor 시그니처가 구현마다 다르다. OpenZeppelin의 ERC20은 `(string name, string symbol)`이지만, 커스텀 구현은 `(string name, string symbol, uint256 initialSupply, address owner)` 등으로 다양하다. UI에서 파라미터 폼을 동적으로 생성하는 이유.
+
+---
+
+## ADR-005: receipt.status 검증을 서버에서 하는 이유
+
+**결정:** `/api/deploy/confirm`, `/api/actions/confirm`에서 receipt.status 검증
+
+**배경:**
+ISSUE-3에서 발견 — tx가 revert되어도 Supabase에 success로 저장되는 버그.
+
+**이유:**
+- 브라우저에서 `waitForTransactionReceipt`을 호출하면 CORS 문제 발생 (StableNet RPC 특성)
+- 따라서 receipt 조회는 서버 사이드에서 수행
+- 서버가 receipt을 조회하는 김에 status 검증도 서버에서 하는 게 자연스러움
+- `receipt.status === 'reverted'`이면 Supabase에 failed로 저장하고 에러 반환
+
+**학습 포인트:**
+viem의 `waitForTransactionReceipt`은 `status: 'success' | 'reverted'`를 반환한다. 하지만 StableNet 같은 커스텀 체인의 RPC는 raw hex(`'0x0'`, `'0x1'`)를 반환할 수 있다. 방어적으로 두 형식 모두 체크.
+
+---
+
+## ADR-006: 배열 파라미터를 타입별로 분류하는 이유
+
+**결정:** `classifyAbiType`에서 `address[]`, `uint256[]` → array, `tuple[]` → disabled
+
+**배경:**
+DEX Router의 `swapExactTokensForTokens(uint, uint, address[], address, uint)` 실행을 위해 배열 입력 UI가 필요했다.
+
+**이유:**
+- 단순 배열(`address[]`, `uint256[]`, `bool[]`): 원소 타입이 단일 솔리디티 타입 → 동적 입력 필드로 충분
+- 복합 배열(`tuple[]`): 각 원소가 여러 필드를 가진 구조체 → 중첩 폼 필요 → 복잡도 대비 사용 빈도 낮음
+- Phase 2 스코프에서 tuple[]까지 하면 과다 → 실제 필요 시점(Uniswap V3 대응)에 추가
+
+**UI 설계:**
+- `+` 버튼으로 항목 추가, 각 항목에 `×` 버튼으로 삭제
+- 입력값은 `encodeArg`에서 배열로 직렬화 → viem에 전달
+- `canExecute`에서 빈 항목이나 유효하지 않은 값 체크
+
+---
+
+## ADR-007: Supabase를 선택한 이유 (vs 자체 DB)
+
+**결정:** Supabase (PostgreSQL + REST API + 대시보드)
+
+**배경:**
+배포 이력, 액션 로그를 저장할 DB가 필요하다.
+
+**이유:**
+- PostgreSQL 기반이라 jsonb, 배열 등 복잡한 데이터 타입 지원
+- REST API 자동 생성 → 별도 ORM/쿼리 빌더 불필요
+- Table Editor로 데이터 직접 확인 가능 → 개발 중 디버깅에 유리
+- Railway에 자체 PostgreSQL 올리면 마이그레이션, 백업 직접 관리해야 함
+
+**트레이드오프:**
+- 외부 서비스 의존 → 네트워크 레이턴시 추가
+- 무료 티어 한도 있음 → 현재 테스트넷 규모에서 충분
+
+---
+
+## ADR-008: GitHub 자동 push를 넣은 이유
+
+**결정:** 배포 성공 시 ABI + 주소 정보를 GitHub에 자동 push
+
+**배경:**
+stablenet-pad의 원래 동기가 "배포 후 팀원이 Slack에서 주소/ABI 물어보는 걸 없애자"였다.
+
+**이유:**
+- 대시보드만으로는 개발자가 코드에서 참조하기 불편
+- GitHub에 push하면 다른 서비스/스크립트에서 바로 import 가능
+- 배포와 동시에 자동 push → 수동 공유 단계 제거
+
+**구조:**
+- `contracts/deployed/{chainId}/{contractName}.json` 형태로 저장
+- ABI, 주소(proxy/implementation), 배포 시각, 생성자 파라미터 포함
+
+---
+
+## ADR-009: wagmi + viem 조합을 선택한 이유
+
+**결정:** 클라이언트에 wagmi v2 + viem 사용
+
+**배경:**
+브라우저에서 MetaMask 연결 + 트랜잭션 전송이 필요하다. 선택지는 ethers.js, web3.js, viem+wagmi.
+
+**이유:**
+- viem: TypeScript-first, 타입 안전성 높음, tree-shakeable
+- wagmi: React hooks로 지갑 연결/상태 관리가 깔끔 (`useAccount`, `useSendTransaction`)
+- ethers.js v6는 괜찮지만 React integration이 wagmi만큼 매끄럽지 않음
+- web3.js: 레거시, 번들 사이즈 큼
+
+**학습 포인트:**
+wagmi의 지갑 컴포넌트(`ConnectButton` 등)는 SSR에서 hydration mismatch를 일으킨다. `mounted` 패턴으로 해결:
+```tsx
+const [mounted, setMounted] = useState(false);
+useEffect(() => setMounted(true), []);
+if (!mounted) return null;
+```
+
+---
+
+## ADR-010: 5-State Machine으로 배포 플로우를 관리하는 이유
+
+**결정:** 배포 UI를 idle → uploading → compiling → signing → confirming → done/error 상태 머신으로 관리
+
+**배경:**
+배포 과정이 비동기 + 다단계(서버 컴파일 → MetaMask 서명 → 온체인 컨펌)라서, 단순 boolean(`isLoading`)으로는 UI 상태를 정확히 표현할 수 없다.
+
+**이유:**
+- 각 단계별로 다른 UI를 보여줘야 함 (로딩 메시지, 버튼 비활성화, 에러 표시)
+- 상태 전이가 명확해서 "지금 뭘 기다리는 중인지" 혼동 없음
+- 에러 발생 시 어느 단계에서 실패했는지 즉시 파악 가능
+
+**학습 포인트:**
+"상태 머신"이라고 하면 거창하지만, 실제로는 `useState<DeployState>('idle')`에 타입을 붙인 것. 핵심은 가능한 상태를 유니온 타입으로 제한해서, "signing 중에 compile 버튼이 눌리는" 같은 불가능한 전이를 타입 레벨에서 차단하는 것.
+
+---
+
+## ADR-011: UniswapV2Factory를 EIP-1167 Clone 패턴으로 분리한 이유
+
+**결정:** 원본 UniswapV2Factory 대신, Pair를 별도 배포하고 Factory는 EIP-1167 Minimal Proxy로 Pair를 clone하는 구조 채택
+
+**배경:**
+팀원 요청: "Factory랑 Router 직접 배포해서 주소만 알려주실 수 있을까요?" → UniswapV2Factory 배포 시도 → StableNet Testnet에서 지속 실패.
+
+**조사 과정 (2026-04-09 ~ 04-10):**
+
+| 가설 | 검증 | 결과 |
+|------|------|------|
+| Gas limit 부족 | MetaMask 36.75M 확인 | ❌ 원인 아님 |
+| EIP-170 contract size 초과 | deployedBytecode 18,864 bytes (한도 24,576) | ❌ 원인 아님 |
+| EIP-3860 initcode size 초과 | creationCode 19,013 bytes (한도 49,152) | ❌ 원인 아님 |
+| Solidity 0.5.16 호환성 | 0.8.20 포팅 후 재시도 | ❌ 동일 실패 |
+| evmVersion 문제 | byzantium/constantinople/spuriousDragon 시도 | ❌ 컴파일 불가 (chainid 필요) |
+| CREATE2 미지원 | MiniFactory로 create2 테스트 | ❌ 정상 동작 |
+| PUSH0 미지원 | Docs 확인: Anzeon = Shanghai 포함 | ❌ 지원됨 |
+| **대형 embedded bytecode** | Factory-only(Pair 미포함) 배포 | **✅ 성공 → 원인 특정** |
+
+**결론:** StableNet EVM이 `type(UniswapV2Pair).creationCode`를 내장한 대형 initcode를 거부함. Docs에 명시된 제한은 없으나, `eth_estimateGas` 시점에서 이미 실패.
+
+**메인넷개발팀 답변 (2026-04-10):** "체인 코드상 확인해봤을때 3.0과 비교하여 최대 tx 사이즈 제한이 작습니다." 정확한 원인 파악에 시간 소요 예상. → **체인 레벨 tx size limit이 근본 원인.** EIP-1167 우회는 올바른 접근.
+
+**우회 방식:**
+1. UniswapV2Pair를 독립 컨트랙트로 먼저 배포 (implementation)
+2. UniswapV2Factory는 Pair 주소만 참조, createPair() 시 EIP-1167 Minimal Proxy(45 bytes)로 clone
+3. Factory bytecode에서 Pair creationCode 완전 제거 → 배포 성공
+
+**트레이드오프:**
+- 배포가 2단계 (Pair → Factory) — 원본은 1단계
+- Pair가 Minimal Proxy라서 `INIT_CODE_PAIR_HASH`가 달라짐 → Router에서 참조 시 수정 필요
+- clone된 Pair의 storage가 proxy에 있고 logic은 implementation에 위임 — 미묘한 동작 차이 가능
+- 체인팀 답변에 따라 원본 배포가 가능해지면 이 우회가 불필요해질 수 있음
+
+**학습 포인트:**
+UniswapV2Factory는 "컨트랙트 하나 배포"가 아니라, 내부에 UniswapV2Pair 전체 bytecode를 상수로 품고 있어서 사실상 "두 컨트랙트를 한 덩어리로 배포"하는 구조다. 이건 Ethereum Mainnet 기준 설계이고, 커스텀 체인에서는 initcode 처리 방식이 다를 수 있다. `eth_estimateGas` 실패 = MetaMask가 가스비를 표시하지 않음 → 배포 전에 이미 revert되는 강력한 시그널.
+
+---
+
+## 문서 관리 규칙
+
+- 새로운 설계 결정이 있을 때마다 ADR-NNN 추가
+- 결정이 번복되면 기존 ADR에 **[SUPERSEDED by ADR-NNN]** 표기, 삭제하지 않음
+- "이유"에는 반드시 "왜 다른 선택지를 안 했는지"(트레이드오프) 포함
+- "학습 포인트"는 선택 — 구현 중 알게 된 비자명한 사실이 있을 때만 추가
