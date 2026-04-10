@@ -159,8 +159,8 @@ export function useDeploy(): UseDeployResult {
         // ── Phase 2: 브라우저 서명 + 전송 ────────────────────────────────
         addLog('MetaMask 서명 요청 중...')
 
-        // 컨스트럭터 args 인코딩
-        const constructorArgs = buildConstructorArgs(contractType, params)
+        // 컨스트럭터 args 인코딩 (ABI constructor inputs 기반 — Generic Proxy OFF 시 실제 args 사용)
+        const constructorArgs = buildConstructorArgs(abi, params)
 
         let finalTxHash: Hash
         let implAddress: string | null = null
@@ -316,10 +316,29 @@ export function useDeploy(): UseDeployResult {
 
 // ─── 헬퍼 ─────────────────────────────────────────────────────────────────
 
-// OZ Upgradeable 패턴: constructor는 항상 비어 있음
-// eslint-disable-next-line @typescript-eslint/no-unused-vars
-function buildConstructorArgs(_contractType: ContractType, _params: ContractParams): unknown[] {
-  return []
+/**
+ * ABI constructor inputs 기반으로 배포 args 배열을 만든다.
+ * - OZ Upgradeable 패턴처럼 constructor가 비어 있으면 [] 반환
+ * - Generic (Proxy OFF) 배포처럼 constructor에 실제 파라미터가 있으면 params에서 순서대로 추출
+ */
+export function buildConstructorArgs(abi: Abi, params: ContractParams): unknown[] {
+  const ctor = abi.find((item) => item.type === 'constructor') as
+    | { type: 'constructor'; inputs: { name: string; type: string }[] }
+    | undefined
+
+  if (!ctor || !ctor.inputs || ctor.inputs.length === 0) return []
+
+  return ctor.inputs.map((input) => {
+    const key = input.name ?? ''
+    const val = params[key]
+    if (val === undefined || val === '') {
+      throw new Error(`constructor 파라미터 누락: ${key}`)
+    }
+    const t = input.type
+    if (t === 'uint256' || t === 'uint24' || t === 'uint8') return BigInt(val)
+    if (t === 'string' || t === 'address') return val
+    throw new Error(`지원하지 않는 constructor 타입: ${t}`)
+  })
 }
 
 // ABI input.type 기반 동적 인코딩 — contractType switch 없음
