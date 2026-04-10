@@ -1,0 +1,47 @@
+{
+  "contractName": "MiniFactory",
+  "type": "MiniFactory",
+  "network": "stablenet-testnet",
+  "chainId": 8283,
+  "proxyAddress": null,
+  "implementationAddress": "0x78cd532523719854472de19e49917318cd173de4",
+  "previousProxyAddress": null,
+  "abi": [
+    {
+      "anonymous": false,
+      "inputs": [
+        {
+          "indexed": false,
+          "internalType": "address",
+          "name": "addr",
+          "type": "address"
+        }
+      ],
+      "name": "Deployed",
+      "type": "event"
+    },
+    {
+      "inputs": [
+        {
+          "internalType": "bytes32",
+          "name": "salt",
+          "type": "bytes32"
+        }
+      ],
+      "name": "deploy",
+      "outputs": [
+        {
+          "internalType": "address",
+          "name": "",
+          "type": "address"
+        }
+      ],
+      "stateMutability": "nonpayable",
+      "type": "function"
+    }
+  ],
+  "txHash": "0xa5135e17ace839a777c0786e17187771cc15fc02786662ac9740c6e2a978df0b",
+  "blockNumber": 6112603,
+  "deployedAt": "2026-04-10T01:33:28.557Z",
+  "deployer": "0x069331CB8ADC2E376f0A2F8a6CDDee4f021e07cD"
+}
