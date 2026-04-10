@@ -1,5 +1,20 @@
 # CHANGELOG.md — stablenet-pad
 
+## 2026-04-10
+
+### ISSUE-6 수정
+- 근본 원인: `hooks/useDeploy.ts` `buildConstructorArgs`가 항상 `[]` 반환
+- ABI constructor inputs 기반 파라미터 매핑으로 수정
+- `uint256` → `BigInt`, `address`/`string` → passthrough
+- vitest 83 → 98 (신규 15개 테스트 추가)
+
+### DEX 풀 플로우 검증 완료
+- Factory 배포 → createPair → ERC20×2 → approve → addLiquidity → swap 성공
+- Uniswap V2 AMM 정상 작동 확인 (0.3% fee, price impact 반영)
+- 발견된 Pad 기능 갭 3개: ISSUE-7, 8, 9 등록
+
+---
+
 ## Phase 2 완료 — 2026-04-08
 운영 액션 레이어, vitest 53/53 PASS
 

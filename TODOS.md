@@ -17,14 +17,26 @@
 - ArrayTester의 getWhitelist(), getScores(), whitelistLength() 등 호출 불가
 - Priority: 중간
 
-### ISSUE-6: StableNet 대형 initcode 배포 실패
-- UniswapV2Factory 등 embedded bytecode 포함 대형 컨트랙트 배포 시 status 0x0
-- 메인넷개발팀 확인 중 (2026-04-10):
-  - 초기 답변: "체인 코드상 최대 tx 사이즈 제한이 작음" — 정확한 원인 파악 진행 중
-  - tx hash 혼동 정정 완료: 원본 실패 tx `0x8c0c5ea0...` 기준으로 분석 요청
-  - 전달 자료: `dex-debug-input.txt` (input data 19,045 bytes, creationCode hex 전문)
+### ISSUE-6: ✅ 수정 완료 (2026-04-10)
+- 근본 원인: `buildConstructorArgs`가 항상 `[]`를 반환하는 Pad 버그. 체인 제한 아님.
+- `hooks/useDeploy.ts` 수정 — ABI constructor inputs 기반으로 params 인코딩
 - 상세 조사 내역: DECISIONS.md ADR-011 참조
-- Priority: 높음 (DEX 시나리오 블로커, 현재 EIP-1167 우회로 사용 중)
+
+### ISSUE-7: 배포 이력 페이지네이션 없음
+- 배포가 쌓이면 과거 컨트랙트가 목록에서 밀려남 → "관리" 버튼 접근 불가
+- DEX 시나리오 중 반복 배포 시 직접 체감
+- Priority: 중간
+
+### ISSUE-8: 외부 컨트랙트 관리 불가
+- Pad에서 배포하지 않은 컨트랙트(예: WKRC)는 배포 이력에 없어서 함수 호출 불가
+- ABI + 주소 수동 입력으로 임의 컨트랙트 관리 기능 필요
+- Priority: 중간
+
+### ISSUE-9: 대형 uint256 값 인코딩 이슈
+- deadline에 `9999999999` 입력 시 "UniswapV2Router: EXPIRED" revert
+- `99999999999999` 입력 시 성공 → 특정 범위에서 정밀도 손실 가능성
+- `buildConstructorArgs` 또는 `encodeArg`에서 uint256 → BigInt 변환 시 경계값 동작 확인 필요
+- Priority: 낮음
 
 ---
 
@@ -95,23 +107,15 @@
 
 ---
 
-## 진행 중: DEX 배포 시나리오
+## 완료: DEX 배포 시나리오 ✅ (2026-04-10)
 
-### 완료
-- ✅ UniswapV2Pair 독립 배포: 0xf57283a136463f6c27daa5e55215a1102e355d75
-- ✅ Light Factory (EIP-1167) 배포 + createPair() 성공 (Claude Code 검증)
-  - Factory: 0xE3092F...
-  - TokenA: 0xc01571... / TokenB: 0x101167...
-  - Pair: 0x5bc238... (PairCreated 이벤트 확인)
-- ✅ 원인 조사 완료 → ADR-011 기록
-- ✅ 메인넷개발팀 문의 완료 (답변 대기 중)
+- ✅ Factory 배포 (원본, Pair bytecode 내장): `0x314ec57f71ebd85e0ff5182cf11c80ee6c1c2ae5`
+- ✅ createPair 성공
+- ✅ ERC20 × 2 배포 (TestToken, constructor에서 deployer에게 mint)
+- ✅ approve × 2
+- ✅ addLiquidity 성공
+- ✅ swapExactTokensForTokens 성공 (tx: `0x5d7fc7c7d82a77357d7470693e73880d4e7390454da5b0570fa97e2de4ead93f`)
+- ✅ Router 배포: `0x2688fa332666cf95556feeeb271ddb5b92a7f2eb`
 
-### 다음 (새 대화에서 진행)
-- Router 배포 (UniswapV2Router02)
-- addLiquidity 테스트
-- swap 테스트
-- 배포 순서: Factory ✅ → Router → addLiquidity → swap
-
-### 블로커
-- ISSUE-6: 원본 Factory 배포 불가 → EIP-1167 우회 사용 중
-- Router의 INIT_CODE_PAIR_HASH가 EIP-1167 clone 기준으로 변경 필요
+ISSUE-6 수정(buildConstructorArgs 버그 픽스)으로 원본 Factory 배포 성공.
+EIP-1167 우회(Light Factory)는 불필요했음 — ADR-011 참조.

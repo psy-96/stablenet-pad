@@ -200,43 +200,77 @@ if (!mounted) return null;
 
 ---
 
-## ADR-011: UniswapV2Factory를 EIP-1167 Clone 패턴으로 분리한 이유
+## ADR-011: UniswapV2Factory 배포 실패 원인 (최종 확정 2026-04-10)
 
-**결정:** 원본 UniswapV2Factory 대신, Pair를 별도 배포하고 Factory는 EIP-1167 Minimal Proxy로 Pair를 clone하는 구조 채택
+**근본 원인:** stablenet-pad의 constructor arg 인코딩 버그.
+`hooks/useDeploy.ts`의 `buildConstructorArgs`가 항상 `[]`를 반환하여
+constructor arg가 bytecode에 인코딩되지 않았음.
 
 **배경:**
 팀원 요청: "Factory랑 Router 직접 배포해서 주소만 알려주실 수 있을까요?" → UniswapV2Factory 배포 시도 → StableNet Testnet에서 지속 실패.
 
-**조사 과정 (2026-04-09 ~ 04-10):**
+**조사 경과:**
 
-| 가설 | 검증 | 결과 |
+| 단계 | 내용 | 결과 |
 |------|------|------|
-| Gas limit 부족 | MetaMask 36.75M 확인 | ❌ 원인 아님 |
-| EIP-170 contract size 초과 | deployedBytecode 18,864 bytes (한도 24,576) | ❌ 원인 아님 |
-| EIP-3860 initcode size 초과 | creationCode 19,013 bytes (한도 49,152) | ❌ 원인 아님 |
-| Solidity 0.5.16 호환성 | 0.8.20 포팅 후 재시도 | ❌ 동일 실패 |
-| evmVersion 문제 | byzantium/constantinople/spuriousDragon 시도 | ❌ 컴파일 불가 (chainid 필요) |
-| CREATE2 미지원 | MiniFactory로 create2 테스트 | ❌ 정상 동작 |
-| PUSH0 미지원 | Docs 확인: Anzeon = Shanghai 포함 | ❌ 지원됨 |
-| **대형 embedded bytecode** | Factory-only(Pair 미포함) 배포 | **✅ 성공 → 원인 특정** |
+| 1 | Gas limit 부족 의심 | ❌ MetaMask 36.75M 확인 — 원인 아님 |
+| 2 | EIP-170/3860 size 초과 의심 | ❌ 각각 한도 이하 — 원인 아님 |
+| 3 | Solidity 버전·evmVersion 호환성 의심 | ❌ 동일 실패 |
+| 4 | CREATE2·PUSH0 미지원 의심 | ❌ 정상 동작 확인 |
+| 5 | Factory-only 배포 (Pair 미포함) 시도 | ✅ 성공 → 대형 embedded bytecode 가설 |
+| 6 | **초기 추정:** StableNet EVM의 대형 initcode 처리 제한 | ❌ 오진 |
+| 7 | 메인넷개발팀 답변: "tx 사이즈 제한이 작다" | 별개 사실 — 이번 실패 원인 아님 |
+| 8 | Explorer에서 Input Data 확인 | **constructor arg 누락 발견** |
+| 9 | `buildConstructorArgs` 수정 후 원본 Factory 배포 | ✅ 성공 |
+| 10 | `createPair` (CREATE2, ~19KB Pair) 실행 | ✅ 성공 — 체인 size limit은 이 케이스에서 문제 아님 |
 
-**결론:** StableNet EVM이 `type(UniswapV2Pair).creationCode`를 내장한 대형 initcode를 거부함. Docs에 명시된 제한은 없으나, `eth_estimateGas` 시점에서 이미 실패.
+**결론:** Pad 버그 100%. EIP-1167 우회(Light Factory)는 불필요했음.
 
-**메인넷개발팀 답변 (2026-04-10):** "체인 코드상 확인해봤을때 3.0과 비교하여 최대 tx 사이즈 제한이 작습니다." 정확한 원인 파악에 시간 소요 예상. → **체인 레벨 tx size limit이 근본 원인.** EIP-1167 우회는 올바른 접근.
+**버그 내용:**
+```typescript
+// 수정 전 — params를 완전히 무시하고 빈 배열 반환
+function buildConstructorArgs(_contractType, _params): unknown[] {
+  return []
+}
 
-**우회 방식:**
-1. UniswapV2Pair를 독립 컨트랙트로 먼저 배포 (implementation)
-2. UniswapV2Factory는 Pair 주소만 참조, createPair() 시 EIP-1167 Minimal Proxy(45 bytes)로 clone
-3. Factory bytecode에서 Pair creationCode 완전 제거 → 배포 성공
+// 수정 후 — ABI constructor inputs 기반으로 params를 순서대로 매핑
+function buildConstructorArgs(abi: Abi, params: ContractParams): unknown[] {
+  const ctor = abi.find((item) => item.type === 'constructor')
+  // ... inputs를 순서대로 params에서 추출
+}
+```
 
-**트레이드오프:**
-- 배포가 2단계 (Pair → Factory) — 원본은 1단계
-- Pair가 Minimal Proxy라서 `INIT_CODE_PAIR_HASH`가 달라짐 → Router에서 참조 시 수정 필요
-- clone된 Pair의 storage가 proxy에 있고 logic은 implementation에 위임 — 미묘한 동작 차이 가능
-- 체인팀 답변에 따라 원본 배포가 가능해지면 이 우회가 불필요해질 수 있음
+OZ Upgradeable 템플릿(빈 constructor)에는 문제가 없어서 오랫동안 발견되지 않았음.
+Generic Upload + Proxy OFF 경로에서만 발현.
+
+**교훈:** 체인 탓하기 전에 자기 코드부터 확인.
+`eth_estimateGas` 실패나 Explorer Input Data 확인이 조기 진단 포인트였다.
 
 **학습 포인트:**
-UniswapV2Factory는 "컨트랙트 하나 배포"가 아니라, 내부에 UniswapV2Pair 전체 bytecode를 상수로 품고 있어서 사실상 "두 컨트랙트를 한 덩어리로 배포"하는 구조다. 이건 Ethereum Mainnet 기준 설계이고, 커스텀 체인에서는 initcode 처리 방식이 다를 수 있다. `eth_estimateGas` 실패 = MetaMask가 가스비를 표시하지 않음 → 배포 전에 이미 revert되는 강력한 시그널.
+UniswapV2Factory는 내부에 UniswapV2Pair 전체 bytecode를 상수로 품고 있어서 사실상 "두 컨트랙트를 한 덩어리로 배포"하는 구조다. `_feeToSetter` constructor arg가 없으면 체인이 revert하고, Explorer에서 Input Data가 `0x`이거나 bytecode만 있으면 arg 인코딩 실패를 의심해야 한다.
+
+---
+
+## ADR-012: DEX 풀 플로우 검증 결과 (2026-04-10)
+
+**목적:** stablenet-pad로 Uniswap V2 스타일 DEX 전체 플로우 실행 가능 여부 검증
+
+**검증 순서:**
+1. UniswapV2Factory 배포 (Generic Upload, Proxy OFF, constructor: `feeToSetter`)
+2. `createPair(tokenA, tokenB)` → PairCreated 이벤트 확인
+3. TestToken × 2 배포 (constructor에서 deployer에게 `initialSupply` mint)
+4. `approve` × 2 (token → Router)
+5. `addLiquidity(tokenA, tokenB, amounts, to, deadline)`
+6. `swapExactTokensForTokens(amountIn, amountOutMin, path[], to, deadline)`
+
+**결과:** 전체 성공. AMM 0.3% 수수료 + 가격 영향 정상 반영 (1 TKA → 0.996 TKB).
+
+**Router 변경점:** `UniswapV2Library.pairFor()`를 `INIT_CODE_HASH` 대신 `Factory.getPair()`로 수정 (테스트넷 간소화).
+
+**발견된 Pad 기능 갭:**
+- ISSUE-7: 배포 이력 페이지네이션 없음 → 반복 배포 시 과거 컨트랙트 접근 불가
+- ISSUE-8: 외부 컨트랙트(Pad 미배포) 관리 불가 → WKRC approve 불가
+- ISSUE-9: 대형 uint256 인코딩 이슈 → deadline `9999999999` EXPIRED
 
 ---
 
