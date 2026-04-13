@@ -80,11 +80,17 @@ export function getTemplateById(id: string): TemplateDefinition | undefined {
 
 import type { ActionParam, ActionParamType, ActionFunctionDef } from '@/types'
 
+type AbiInputField = {
+  name: string
+  type: string
+  components?: AbiInputField[]
+}
+
 type AbiItem = {
   type: string
   name?: string
   stateMutability?: string
-  inputs?: { name: string; type: string }[]
+  inputs?: AbiInputField[]
 }
 
 /** Solidity 타입 → ActionParamType 분류 */
@@ -96,8 +102,25 @@ export function classifyAbiType(solType: string): ActionParamType {
   if (/^bytes(\d+)?$/.test(solType)) return 'raw-hex'
   // 단일 원소 타입 배열: address[], uint256[], uint24[], bool[] 등
   if (/^(address|bool|string|u?int(\d+)?|bytes(\d+)?)(\[\d*\])+$/.test(solType)) return 'array'
-  // tuple, tuple[], 기타 복합 타입
+  // 단일 tuple (components로 펼쳐서 입력)
+  if (solType === 'tuple') return 'tuple'
+  // tuple[], 기타 복합 타입
   return 'disabled'
+}
+
+/** ABI inputs 항목 하나를 ActionParam으로 변환 (재귀 — tuple components 지원) */
+function inputToActionParam(input: AbiInputField): ActionParam {
+  const paramType = classifyAbiType(input.type)
+  return {
+    key: input.name,
+    label: input.name,
+    solType: input.type,
+    type: paramType,
+    ...(paramType === 'array' ? { arrayItemSolType: arrayItemType(input.type) } : {}),
+    ...(paramType === 'tuple' && input.components
+      ? { components: input.components.map(inputToActionParam) }
+      : {}),
+  }
 }
 
 /** 배열 타입에서 항목 타입 추출 (예: "address[]" → "address", "uint256[][]" → "uint256[]") */
@@ -123,16 +146,7 @@ export function abiWriteFunctionsToActions(abi: AbiItem[]): ActionFunctionDef[] 
     const mut = item.stateMutability
     if (mut !== 'nonpayable' && mut !== 'payable') continue
 
-    const params: ActionParam[] = (item.inputs ?? []).map((input) => {
-      const paramType = classifyAbiType(input.type)
-      return {
-        key: input.name,
-        label: input.name,
-        solType: input.type,
-        type: paramType,
-        ...(paramType === 'array' ? { arrayItemSolType: arrayItemType(input.type) } : {}),
-      }
-    })
+    const params: ActionParam[] = (item.inputs ?? []).map(inputToActionParam)
 
     const paramSig = (item.inputs ?? []).map((i) => i.type).join(',')
     result.push({

@@ -1,16 +1,36 @@
 import { classifyAbiType } from './template-registry'
 import type { ActionParam, ReadFunctionDef } from '@/types'
 
+type AbiInputField = {
+  name: string
+  type: string
+  components?: AbiInputField[]
+}
+
 type AbiItem = {
   type: string
   name?: string
   stateMutability?: string
-  inputs?: { name: string; type: string }[]
+  inputs?: AbiInputField[]
   outputs?: { name: string; type: string }[]
 }
 
 function arrayItemType(solType: string): string {
   return solType.replace(/\[\d*\]$/, '')
+}
+
+function inputToActionParam(input: AbiInputField): ActionParam {
+  const paramType = classifyAbiType(input.type)
+  return {
+    key: input.name,
+    label: input.name,
+    solType: input.type,
+    type: paramType,
+    ...(paramType === 'array' ? { arrayItemSolType: arrayItemType(input.type) } : {}),
+    ...(paramType === 'tuple' && input.components
+      ? { components: input.components.map(inputToActionParam) }
+      : {}),
+  }
 }
 
 /**
@@ -25,16 +45,7 @@ export function abiReadFunctionsToActions(abi: AbiItem[]): ReadFunctionDef[] {
     const mut = item.stateMutability
     if (mut !== 'view' && mut !== 'pure') continue
 
-    const params: ActionParam[] = (item.inputs ?? []).map((input) => {
-      const paramType = classifyAbiType(input.type)
-      return {
-        key: input.name,
-        label: input.name,
-        solType: input.type,
-        type: paramType,
-        ...(paramType === 'array' ? { arrayItemSolType: arrayItemType(input.type) } : {}),
-      }
-    })
+    const params: ActionParam[] = (item.inputs ?? []).map(inputToActionParam)
 
     const paramSig = (item.inputs ?? []).map((i) => i.type).join(',')
     result.push({

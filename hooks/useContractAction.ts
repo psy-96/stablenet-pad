@@ -93,6 +93,12 @@ export function useContractAction(): UseContractActionResult {
       try {
         // ── 1. args 인코딩 ──────────────────────────────────────────────
         const args = fn.params.map((p) => {
+          // tuple: components를 순서대로 배열로 조립 (viem은 배열로 인코딩)
+          if (p.type === 'tuple' && p.components) {
+            return p.components.map((c) =>
+              encodeArg(c.solType, formValues[`${p.key}.${c.key}`] ?? '')
+            )
+          }
           const val = formValues[p.key] ?? ''
           return encodeArg(p.solType, val)
         })

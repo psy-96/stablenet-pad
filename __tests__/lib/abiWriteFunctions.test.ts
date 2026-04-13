@@ -81,10 +81,10 @@ describe('abiWriteFunctionsToActions', () => {
     expect(setData.params[0]).toMatchObject({ key: 'data', solType: 'bytes32', type: 'raw-hex' })
   })
 
-  it('classifies tuple as disabled', () => {
+  it('classifies tuple as tuple', () => {
     const fns = abiWriteFunctionsToActions(SAMPLE_ABI)
     const setConfig = fns.find((f) => f.name === 'setConfig')!
-    expect(setConfig.params[0]).toMatchObject({ key: 'cfg', solType: 'tuple', type: 'disabled' })
+    expect(setConfig.params[0]).toMatchObject({ key: 'cfg', solType: 'tuple', type: 'tuple' })
   })
 
   it('sets stateMutability correctly', () => {

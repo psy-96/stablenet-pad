@@ -89,7 +89,7 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
     for (const p of selectedFn.params) {
       if (p.type === 'disabled') return false
       const val = formValues[p.key] ?? ''
-      if (p.type === 'bool') continue // checkbox always has a value
+      if (p.type === 'bool') continue
       if (p.type === 'array') {
         try {
           const items = JSON.parse(val || '[]') as unknown[]
@@ -97,9 +97,23 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
         } catch { return false }
         continue
       }
+      if (p.type === 'tuple') {
+        if (!p.components || p.components.length === 0) return false
+        for (const c of p.components) {
+          if (c.type === 'disabled') return false
+          if (c.type === 'bool') continue
+          const sv = formValues[`${p.key}.${c.key}`] ?? ''
+          if (!sv.trim()) return false
+          if (c.type === 'address' && (sv.length !== 42 || !sv.startsWith('0x'))) return false
+        }
+        continue
+      }
       if (!val.trim()) return false
       if (p.type === 'address' && (val.length !== 42 || !val.startsWith('0x'))) return false
-      if (p.type === 'uint256' && !/^\d+$/.test(val)) return false
+      if (p.type === 'uint256') {
+        const isSigned = /^int\d*$/.test(p.solType)
+        if (isSigned ? !/^-?\d+$/.test(val) : !/^\d+$/.test(val)) return false
+      }
     }
     return true
   }
@@ -535,6 +549,106 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
                   )
                 }
 
+                if (p.type === 'tuple') {
+                  const comps = p.components ?? []
+                  if (comps.length === 0) {
+                    return (
+                      <div key={p.key}>
+                        <label className="block text-xs text-gray-500 mb-1">{p.label}</label>
+                        <div className="bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-xs text-gray-600">
+                          {p.solType} — ABI에 components 정보 없음
+                        </div>
+                      </div>
+                    )
+                  }
+                  return (
+                    <div key={p.key}>
+                      <label className="block text-xs text-gray-400 mb-1">
+                        {p.label} <span className="text-gray-600">({p.solType})</span>
+                      </label>
+                      <div className="ml-3 pl-3 border-l border-gray-700 flex flex-col gap-2">
+                        {comps.map((c) => {
+                          const subKey = `${p.key}.${c.key}`
+                          const sv = formValues[subKey] ?? ''
+                          if (c.type === 'bool') {
+                            const checked = sv === 'true'
+                            return (
+                              <div key={subKey} className="flex items-center gap-3">
+                                <label className="text-xs text-gray-400">{c.label}</label>
+                                <button type="button" onClick={() => setValue(subKey, checked ? 'false' : 'true')}
+                                  className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${checked ? 'bg-blue-600' : 'bg-gray-700'}`}>
+                                  <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white transition-transform ${checked ? 'translate-x-4' : 'translate-x-1'}`} />
+                                </button>
+                              </div>
+                            )
+                          }
+                          if (c.type === 'address') {
+                            const invalid = sv !== '' && (!sv.startsWith('0x') || sv.length !== 42)
+                            return (
+                              <div key={subKey}>
+                                <label className="block text-xs text-gray-400 mb-1">{c.label}</label>
+                                <input type="text" value={sv} onChange={(e) => setValue(subKey, e.target.value)}
+                                  placeholder="0x..."
+                                  className={`w-full bg-gray-800 border rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 font-mono ${invalid ? 'border-red-700' : 'border-gray-700'}`} />
+                              </div>
+                            )
+                          }
+                          if (c.type === 'uint256') {
+                            const signed = /^int\d*$/.test(c.solType)
+                            return (
+                              <div key={subKey}>
+                                <label className="block text-xs text-gray-400 mb-1">
+                                  {c.label} <span className="text-gray-600">({c.solType})</span>
+                                </label>
+                                <input type="text" value={sv}
+                                  onChange={(e) => {
+                                    const v = signed
+                                      ? (e.target.value.match(/^-?\d*/) ?? [''])[0]
+                                      : e.target.value.replace(/\D/g, '')
+                                    setValue(subKey, v)
+                                  }}
+                                  placeholder={signed ? '정수 (음수 가능)' : '숫자 입력'}
+                                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-blue-500" />
+                              </div>
+                            )
+                          }
+                          if (c.type === 'raw-hex') {
+                            return (
+                              <div key={subKey}>
+                                <label className="block text-xs text-gray-400 mb-1">
+                                  {c.label} <span className="text-gray-600">({c.solType})</span>
+                                </label>
+                                <input type="text" value={sv} onChange={(e) => setValue(subKey, e.target.value)}
+                                  placeholder="0x..."
+                                  className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-blue-500 font-mono" />
+                              </div>
+                            )
+                          }
+                          if (c.type === 'disabled') {
+                            return (
+                              <div key={subKey}>
+                                <label className="block text-xs text-gray-500 mb-1">{c.label}</label>
+                                <div className="bg-gray-800 border border-gray-700 rounded-lg px-2 py-1.5 text-xs text-gray-600">
+                                  {c.solType} — 지원 안 됨
+                                </div>
+                              </div>
+                            )
+                          }
+                          // text (string) default
+                          return (
+                            <div key={subKey}>
+                              <label className="block text-xs text-gray-400 mb-1">{c.label}</label>
+                              <input type="text" value={sv} onChange={(e) => setValue(subKey, e.target.value)}
+                                placeholder={c.label}
+                                className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-blue-500" />
+                            </div>
+                          )
+                        })}
+                      </div>
+                    </div>
+                  )
+                }
+
                 if (p.type === 'bool') {
                   const checked = formValues[p.key] === 'true'
                   // initialize with 'false' if not set
@@ -571,8 +685,14 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
                       <input
                         type="text"
                         value={val}
-                        onChange={(e) => setValue(p.key, e.target.value.replace(/\D/g, ''))}
-                        placeholder="숫자 입력"
+                        onChange={(e) => {
+                          const signed = /^int\d*$/.test(p.solType)
+                          const v = signed
+                            ? (e.target.value.match(/^-?\d*/) ?? [''])[0]
+                            : e.target.value.replace(/\D/g, '')
+                          setValue(p.key, v)
+                        }}
+                        placeholder={/^int\d*$/.test(p.solType) ? '정수 (음수 가능)' : '숫자 입력'}
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500"
                       />
                     </div>

@@ -118,7 +118,7 @@ export interface ConfirmResponse {
  * - array   : address[], uint256[] 등 단일 타입 배열 → 동적 항목 추가 UI
  * - disabled: tuple, tuple[], 기타 복합 타입 → UI 비활성
  */
-export type ActionParamType = 'text' | 'address' | 'uint256' | 'bool' | 'raw-hex' | 'array' | 'disabled'
+export type ActionParamType = 'text' | 'address' | 'uint256' | 'bool' | 'raw-hex' | 'array' | 'tuple' | 'disabled'
 
 export interface ActionParam {
   key: string
@@ -128,6 +128,8 @@ export interface ActionParam {
   type: ActionParamType
   /** array 타입일 때 항목의 Solidity 타입 (e.g. 'address', 'uint256') */
   arrayItemSolType?: string
+  /** tuple 타입일 때 내부 컴포넌트 필드 */
+  components?: ActionParam[]
 }
 
 export interface ActionFunctionDef {
