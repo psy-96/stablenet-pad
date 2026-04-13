@@ -88,7 +88,7 @@ type AbiItem = {
 }
 
 /** Solidity 타입 → ActionParamType 분류 */
-function classifyAbiType(solType: string): ActionParamType {
+export function classifyAbiType(solType: string): ActionParamType {
   if (solType === 'string') return 'text'
   if (solType === 'address') return 'address'
   if (solType === 'bool') return 'bool'

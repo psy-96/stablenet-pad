@@ -163,3 +163,29 @@ export interface ActionConfirmResponse {
   actionId: string
   events?: ParsedEvent[]
 }
+
+// ─── Phase 2 (ISSUE-5): Read 함수 ────────────────────────────────────────────
+
+export interface ReadFunctionDef {
+  name: string
+  /** e.g. "balanceOf(address)" */
+  signature: string
+  params: ActionParam[]
+  stateMutability: 'view' | 'pure'
+  outputs: { name: string; type: string }[]
+}
+
+// POST /api/contracts/read 요청
+export interface ContractReadRequest {
+  address: string
+  abi: object[]
+  functionName: string
+  /** 파라미터 값 — 순서대로, string 직렬화 */
+  args: string[]
+}
+
+// POST /api/contracts/read 응답
+export interface ContractReadResponse {
+  /** BigInt → string, 나머지는 JSON 직렬화 */
+  result: string
+}
