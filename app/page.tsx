@@ -9,6 +9,7 @@ import ResultPanel from '@/components/ResultPanel'
 import DeployHistory from '@/components/DeployHistory'
 import ContractActionPanel from '@/components/ContractActionPanel'
 import V2Panel from '@/components/V2Panel'
+import V3Panel from '@/components/V3Panel'
 import { useDeploy } from '@/hooks/useDeploy'
 import type { DeploymentResult } from '@/types'
 
@@ -99,12 +100,8 @@ export default function Home() {
       </div>
 
       <main className="flex-1 p-4 overflow-hidden">
-        {/* V3 Coming Soon */}
-        {mainTab === 'v3' && (
-          <div className="flex items-center justify-center h-full">
-            <p className="text-gray-600 text-sm">V3 작업 — Coming Soon</p>
-          </div>
-        )}
+        {/* V3 패널 */}
+        {mainTab === 'v3' && <V3Panel />}
 
         {/* V2 패널 */}
         {mainTab === 'v2' && <V2Panel />}
