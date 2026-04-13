@@ -11,7 +11,7 @@ const config: HardhatUserConfig = {
   solidity: '0.7.6', // 더미 — 직접 컴파일하지 않음 (사전 컴파일 아티팩트 사용)
   networks: {
     stablenet: {
-      url: 'https://rpc.stablenet.io',
+      url: 'https://api.test.stablenet.network',
       chainId: 8283,
       accounts: DEPLOYER_PRIVATE_KEY ? [DEPLOYER_PRIVATE_KEY] : [],
     },
