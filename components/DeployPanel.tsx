@@ -21,14 +21,16 @@ interface Props {
   isDeploying: boolean
   deployerAddress: string | undefined
   onImportComplete?: () => void
+  /** 초기 선택 템플릿 ID (기본: 첫 번째 템플릿) */
+  initialTemplateId?: string
 }
 
-export default function DeployPanel({ onDeploy, isDeploying, deployerAddress, onImportComplete }: Props) {
+export default function DeployPanel({ onDeploy, isDeploying, deployerAddress, onImportComplete, initialTemplateId }: Props) {
   const [mode, setMode] = useState<DeployMode>('template')
 
   // 템플릿 모드
   const [selectedTemplateId, setSelectedTemplateId] = useState<string | null>(
-    TEMPLATE_REGISTRY[0]?.id ?? null
+    initialTemplateId ?? TEMPLATE_REGISTRY[0]?.id ?? null
   )
   const [templateParams, setTemplateParams] = useState<ContractParams | null>(null)
   const [templateParamsValid, setTemplateParamsValid] = useState(false)

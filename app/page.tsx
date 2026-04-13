@@ -8,11 +8,15 @@ import LogStream from '@/components/LogStream'
 import ResultPanel from '@/components/ResultPanel'
 import DeployHistory from '@/components/DeployHistory'
 import ContractActionPanel from '@/components/ContractActionPanel'
+import V2Panel from '@/components/V2Panel'
 import { useDeploy } from '@/hooks/useDeploy'
 import type { DeploymentResult } from '@/types'
 
+type MainTab = 'v2' | 'v3' | 'general'
+
 export default function Home() {
   const [mounted, setMounted] = useState(false)
+  const [mainTab, setMainTab] = useState<MainTab>('v2')
   useEffect(() => setMounted(true), [])
 
   const { address } = useAccount()
@@ -77,7 +81,36 @@ export default function Home() {
         </div>
       )}
 
+      {/* 메인 탭 */}
+      <div className="flex gap-1 px-4 pt-3 border-b border-gray-800 bg-gray-950">
+        {(['v2', 'v3', 'general'] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setMainTab(tab)}
+            className={`px-4 py-2 text-sm font-medium rounded-t-lg transition-colors ${
+              mainTab === tab
+                ? 'bg-gray-900 text-white border border-b-gray-900 border-gray-800'
+                : 'text-gray-600 hover:text-gray-400'
+            }`}
+          >
+            {tab === 'v2' ? 'V2 작업' : tab === 'v3' ? 'V3 작업' : '일반 작업'}
+          </button>
+        ))}
+      </div>
+
       <main className="flex-1 p-4 overflow-hidden">
+        {/* V3 Coming Soon */}
+        {mainTab === 'v3' && (
+          <div className="flex items-center justify-center h-full">
+            <p className="text-gray-600 text-sm">V3 작업 — Coming Soon</p>
+          </div>
+        )}
+
+        {/* V2 패널 */}
+        {mainTab === 'v2' && <V2Panel />}
+
+        {/* 일반 작업 */}
+        {mainTab === 'general' && (
         <div className="grid grid-cols-3 gap-4 h-full">
           {/* 왼쪽: Deploy Panel */}
           <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 overflow-y-auto">
@@ -133,6 +166,7 @@ export default function Home() {
             )}
           </div>
         </div>
+        )}
       </main>
     </div>
   )
