@@ -1,6 +1,59 @@
 # CHANGELOG.md — stablenet-pad
 
-## 2026-04-13
+## 2026-04-13 (latest)
+
+### V3 메뉴 UI 추가
+- `lib/v3-config.ts`: V3 Factory / PositionManager / SwapRouter 주소·ABI·DeploymentResult 상수
+- `components/V3Panel.tsx`: ERC20 배포 단축 + 3개 컨트랙트 ContractActionPanel
+- 환경변수: `NEXT_PUBLIC_V3_FACTORY_ADDRESS` / `NEXT_PUBLIC_V3_ROUTER_ADDRESS` / `NEXT_PUBLIC_V3_POSITION_MANAGER_ADDRESS`
+- `app/page.tsx`: "V3 작업" 탭에 V3Panel 연결 (Coming Soon 제거)
+
+### tuple 파라미터 UI 지원
+- `classifyAbiType`: `tuple` → `'tuple'` (기존 `'disabled'` 해제)
+- `ContractActionPanel`: ABI `components` 기반 재귀 서브 필드 렌더링 (dotted key 방식)
+- `useContractAction`: tuple args → 컴포넌트 배열 조립 → viem 인코딩
+- 부호 있는 `int*` 입력 지원 (음수 허용)
+- `tuple[]` 및 기타 복합 배열 타입은 `disabled` 유지
+
+### V3 컨트랙트 배포 완료 (StableNet Testnet)
+- `scripts/v3-deploy/` 독립 Hardhat 프로젝트, pre-compiled artifact + 라이브러리 링킹 수동 처리
+
+  | 컨트랙트 | 주소 |
+  |---|---|
+  | UniswapV3Factory | `0xa0f51De7c6267fd10b168d941CB06093E76785D7` |
+  | NonfungiblePositionManager | `0xAA52Bd6b11944343523dBC68C2B5f602D33A6e72` |
+  | SwapRouter | `0x659BC8F37fb6EC52289B3c44cf6Fa6764ad113dF` |
+  | NonfungibleTokenPositionDescriptor | `0x6D00b02eA7Ec68B42D9a5B1a2aa61F6FA231aE3C` |
+
+### ISSUE-1: 액션 이력 조회 UI ✅
+- `GET /api/actions?contract_address=0x...`: deployments → contract_actions 2-step 조회
+- `ContractActionPanel` "이력" 탭: 최근 20건, 파라미터·이벤트 접기/펼치기
+
+### ISSUE-5: Read 함수 UI ✅
+- `lib/abi-utils.ts`: `abiReadFunctionsToActions()` 순수 함수
+- `ContractActionPanel` Write / Read 탭 분리
+- `POST /api/contracts/read`: 서버사이드 `readContract()` (CORS 우회)
+
+### ISSUE-7: 배포 이력 핀/즐겨찾기 ✅
+- `deployments.pinned boolean` 컬럼 (Supabase migration 필요)
+- `PATCH /api/deployments/[id]/pin`: 핀 토글
+- `DeployHistory`: ⭐ 버튼 + optimistic update, 핀된 항목 최상단 고정
+
+### ISSUE-8: 외부 컨트랙트 임포트 ✅
+- `POST /api/deployments/import`: ABI + 주소 → deployments 테이블 저장
+- `DeployPanel` "임포트" 탭: ABI JSON 붙여넣기 + 주소 입력
+
+### ISSUE-9: uint256 인코딩 ✅ (ISSUE-6 수정 시 함께 해결)
+- `encodeArg`: string → BigInt 변환, 경계값 정상 처리
+
+### V2 메뉴 UI 완료
+- `components/V2Panel.tsx`: ERC20 배포 단축 + Factory/Router ContractActionPanel
+- `lib/v2-config.ts`: 주소·ABI·DeploymentResult 상수, 환경변수 분리
+  - `NEXT_PUBLIC_V2_FACTORY_ADDRESS`, `NEXT_PUBLIC_V2_ROUTER_ADDRESS`
+
+---
+
+## 2026-04-13 (earlier)
 
 ### ISSUE-7 핀/즐겨찾기 구현
 - `deployments` 테이블 `pinned boolean DEFAULT false` 컬럼 + 복합 인덱스

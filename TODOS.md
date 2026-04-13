@@ -2,38 +2,49 @@
 
 ## 오픈 이슈
 
-### ISSUE-1: 액션 이력 조회 UI
-- `contract_actions` 테이블 데이터를 ContractActionPanel 하단 또는 별도 탭에서 표시
-- 현재 실행 로그만 표시 (휘발성). Supabase에 쌓이지만 대시보드 조회 불가
-- Priority: 중간
-
-### ISSUE-2: CertiK Explorer 소스코드 검증
+### ISSUE-2: CertiK Explorer 소스코드 검증 — 대기
 - 배포된 컨트랙트 소스코드를 Explorer에 검증 제출하는 플로우
-- Explorer에서 Contract Verification 가능한 것 확인됨. 자동/수동 여부 미확인.
+- **현재 상태**: Explorer verify API 미제공, 수동 검증만 가능
 - Priority: 낮음
 
-### ISSUE-5: Read 함수 미표시
-- ContractActionPanel에서 write 함수만 표시, read(view/pure) 함수가 UI에 없음
-- P2 QA(QA-REG-2) 중 발견
-- Priority: 중간
+---
 
-### ISSUE-7: 배포 이력 핀/즐겨찾기 — 코드 완료, Supabase migration 미실행
-- `deployments` 테이블 `pinned boolean DEFAULT false` 컬럼 추가
-- `PATCH /api/deployments/[id]/pin` 엔드포인트 구현
-- `DeployHistory.tsx` ⭐ 버튼 + optimistic update 구현
-- **미실행**: `supabase/migrations/20260413_add_pinned_to_deployments.sql` Dashboard SQL Editor에서 실행 필요
-- Priority: 중간
+## 다음 작업
 
-### ISSUE-8: 외부 컨트랙트 관리 불가
-- Pad에서 배포하지 않은 컨트랙트(예: WKRC `0x0000000000000000000000000000000000001000`)는 배포 이력에 없어서 함수 호출 불가
-- ABI + 주소 수동 입력으로 임의 컨트랙트 관리 기능 필요
-- Priority: 중간
+### V3 풀 플로우 테스트
+- V3 메뉴 UI 완료. 다음 단계: createPool → mint → swap 실제 실행 검증
+- PositionManager `mint(MintParams)` — tuple 파라미터 UI로 실행 가능
+- SwapRouter `exactInputSingle(ExactInputSingleParams)` — tuple 파라미터 UI로 실행 가능
 
-### ISSUE-9: 대형 uint256 값 인코딩 이슈
-- deadline에 `9999999999` 입력 시 "UniswapV2Router: EXPIRED" revert
-- `99999999999999` 입력 시 성공 → 특정 범위에서 정밀도 손실 가능성
-- `buildConstructorArgs` 또는 `encodeArg`에서 uint256 → BigInt 변환 시 경계값 동작 확인 필요
-- Priority: 낮음
+---
+
+## 완료: ISSUE-1 — 액션 이력 조회 UI ✅ (2026-04-13)
+- `GET /api/actions?contract_address=0x...`: deployments → contract_actions 2-step 조회
+- `ContractActionPanel` "이력" 탭: 최근 20건, 파라미터·이벤트 접기/펼치기
+
+---
+
+## 완료: ISSUE-5 — Read 함수 UI ✅ (2026-04-13)
+- `lib/abi-utils.ts`: `abiReadFunctionsToActions()` 순수 함수
+- `ContractActionPanel` Write / Read 탭 분리, `POST /api/contracts/read` 서버사이드 실행
+
+---
+
+## 완료: ISSUE-7 — 배포 이력 핀/즐겨찾기 ✅ (2026-04-13)
+- `deployments.pinned boolean` 컬럼, `PATCH /api/deployments/[id]/pin`
+- `DeployHistory` ⭐ 버튼 + optimistic update, 핀된 항목 최상단 고정
+- Supabase migration: `supabase/migrations/20260413_add_pinned_to_deployments.sql` 실행 완료
+
+---
+
+## 완료: ISSUE-8 — 외부 컨트랙트 임포트 ✅ (2026-04-13)
+- `POST /api/deployments/import`: ABI + 주소 → deployments 테이블 저장
+- `DeployPanel` "임포트" 탭: ABI JSON 붙여넣기 + 주소 입력
+
+---
+
+## 완료: ISSUE-9 — uint256 인코딩 ✅ (2026-04-13, ISSUE-6 수정 시 함께 해결)
+- `encodeArg` string → BigInt 변환 정상 처리, deadline 경계값 이상 없음
 
 ---
 
@@ -140,6 +151,33 @@ ABI 파일 팀원에게 공유 완료.
 
 ---
 
-## 미실행 인프라
+## 완료: tuple 파라미터 UI ✅ (2026-04-13)
+- `classifyAbiType`: `tuple` → `'tuple'` 분류 (기존 `'disabled'` 해제)
+- `ContractActionPanel`: components 기반 재귀 서브 필드 렌더링
+- `useContractAction`: tuple args → 컴포넌트 배열 조립 → viem 인코딩
+- V3 PositionManager `mint(MintParams)`, SwapRouter `exactInputSingle` 등 struct 입력 지원
 
-- 🔲 Supabase migration: `supabase/migrations/20260413_add_pinned_to_deployments.sql` — Dashboard SQL Editor에서 실행 필요 (ISSUE-7 핀 기능 활성화)
+---
+
+## 완료: V2 메뉴 UI ✅ (2026-04-13)
+- `lib/v2-config.ts`, `components/V2Panel.tsx`
+- V2 Factory / Router 주소 환경변수 분리
+- `app/page.tsx` 탭 구조: V2 작업 / V3 작업 / 일반 작업
+
+---
+
+## 완료: V3 컨트랙트 배포 ✅ (2026-04-13, Pad 외부 Hardhat 스크립트)
+- `scripts/v3-deploy/` 독립 Hardhat 프로젝트
+
+  | 컨트랙트 | 주소 |
+  |---|---|
+  | UniswapV3Factory | `0xa0f51De7c6267fd10b168d941CB06093E76785D7` |
+  | NonfungiblePositionManager | `0xAA52Bd6b11944343523dBC68C2B5f602D33A6e72` |
+  | SwapRouter | `0x659BC8F37fb6EC52289B3c44cf6Fa6764ad113dF` |
+  | NonfungibleTokenPositionDescriptor | `0x6D00b02eA7Ec68B42D9a5B1a2aa61F6FA231aE3C` |
+
+---
+
+## 완료: V3 메뉴 UI ✅ (2026-04-13)
+- `lib/v3-config.ts`, `components/V3Panel.tsx`
+- Factory / PositionManager / SwapRouter ContractActionPanel + ERC20 배포 단축

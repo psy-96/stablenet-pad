@@ -297,6 +297,53 @@ UniswapV2Factory는 내부에 UniswapV2Pair 전체 bytecode를 상수로 품고 
 
 ---
 
+## ADR-014: V3 컨트랙트 배포 방식 — Pad 외부 Hardhat 스크립트 (2026-04-13)
+
+**결정:** Uniswap V3 컨트랙트는 stablenet-pad 외부의 독립 Hardhat 프로젝트(`scripts/v3-deploy/`)로 배포하고, 결과(주소+ABI)만 Pad에 import한다.
+
+**배경:**
+V3 컨트랙트(Factory, PositionManager, SwapRouter 등)는 복잡한 라이브러리 링킹이 필요하고, npm 패키지(`@uniswap/v3-core`, `@uniswap/v3-periphery`)는 소스 `.sol`이 아닌 pre-compiled artifact만 제공한다.
+
+**이유:**
+- `@uniswap/v3-periphery` npm 패키지는 `.sol` 소스를 제공하지 않아 Hardhat의 일반 컴파일 워크플로우 사용 불가
+- `NonfungiblePositionManager`는 `NFTDescriptor` 라이브러리를 링킹해야 함 — `__$hash$__` placeholder를 바이트 오프셋에 따라 수동으로 교체하는 `linkBytecode()` 함수 구현
+- Pad의 Generic Upload는 단일 `.sol` 플랫파일 업로드를 가정하므로 이 케이스에 맞지 않음
+- 배포는 어디서든 할 수 있다 — 중요한 것은 결과물(주소 + ABI)을 Pad에서 관리할 수 있는 것
+
+**"배포는 어디서든, 관리는 Pad에서" 패턴:**
+- 외부 도구로 배포 → 주소 + ABI를 Pad에 import (`POST /api/deployments/import`)
+- import된 컨트랙트는 Pad의 ContractActionPanel에서 동일하게 함수 호출 가능
+- ISSUE-8(외부 컨트랙트 임포트) 구현이 이 패턴을 가능하게 함
+
+**학습 포인트:**
+`NonfungiblePositionDescriptor`의 `linkReferences`에서 `NFTDescriptor` placeholder의 바이트 오프셋을 읽어 정확한 위치에 라이브러리 주소를 삽입해야 한다. offset 1681이 실제 배포에서 확인됨.
+
+---
+
+## ADR-015: tuple 파라미터 UI — ABI components 기반 재귀 렌더링 (2026-04-13)
+
+**결정:** `classifyAbiType`에서 `tuple` 타입을 `'disabled'`에서 `'tuple'`로 해제. ABI `components` 배열 기반으로 서브 필드를 재귀적으로 렌더링.
+
+**배경:**
+V3 PositionManager의 `mint(MintParams)`, SwapRouter의 `exactInputSingle(ExactInputSingleParams)` 등 주요 함수가 모두 struct(tuple) 파라미터를 사용한다. tuple이 disabled 상태면 V3 메뉴 UI가 있어도 실질적으로 함수를 실행할 수 없다.
+
+**이유:**
+- Uniswap V3의 핵심 함수들이 tuple 파라미터를 사용 → 지원 안 하면 V3 UI가 무의미
+- viem은 tuple을 `[val1, val2, ...]` 배열 형식으로 인코딩 → 컴포넌트 순서대로 배열 조립하면 됨
+- ABI `components` 필드가 이미 서브 필드 타입 정보를 담고 있어 재귀 렌더링이 자연스럽게 구현됨
+
+**구현 방식:**
+- 폼 값 키: `"paramKey.componentKey"` 점 표기법
+- `ContractActionPanel`: `p.type === 'tuple'`이면 `p.components`를 순회해 서브 필드 렌더링
+- `useContractAction`: `p.type === 'tuple'`이면 components를 순서대로 매핑해 배열 조립
+- `canExecute`: tuple 파라미터는 각 component 서브 필드를 개별 검증
+
+**미지원 유지:**
+- `tuple[]`: 각 원소가 여러 필드를 가진 배열 → 중첩 동적 폼 필요 → 복잡도 대비 현재 사용 빈도 낮음
+- `bytes`, `bytes[]` 등 raw 인코딩 필요한 복합 타입은 `disabled` 유지
+
+---
+
 ## 문서 관리 규칙
 
 - 새로운 설계 결정이 있을 때마다 ADR-NNN 추가
