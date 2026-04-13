@@ -12,6 +12,8 @@ import { explorerAddressUrl } from '@/lib/stablenet'
 import {
   V2_FACTORY_ADDRESS,
   V2_ROUTER_ADDRESS,
+  FACTORY_ABI,
+  ROUTER_ABI,
   FACTORY_DEPLOYMENT,
   ROUTER_DEPLOYMENT,
 } from '@/lib/v2-config'
@@ -24,6 +26,15 @@ export default function V2Panel() {
   const [v2Action, setV2Action] = useState<V2Action | null>(null)
   const [historyKey, setHistoryKey] = useState(0)
   const [selectedDeployment, setSelectedDeployment] = useState<DeploymentResult | null>(null)
+  const [abiCopied, setAbiCopied] = useState(false)
+
+  function copyAbi() {
+    const abi = v2Action === 'factory' ? FACTORY_ABI : ROUTER_ABI
+    void navigator.clipboard.writeText(JSON.stringify(abi, null, 2)).then(() => {
+      setAbiCopied(true)
+      setTimeout(() => setAbiCopied(false), 1500)
+    })
+  }
 
   const {
     logs,
@@ -144,8 +155,8 @@ export default function V2Panel() {
             />
           </>
         ) : v2Action === 'factory' || v2Action === 'router' ? (
-          <div className="flex flex-col gap-2">
-            <h2 className="text-sm font-medium text-gray-400 mb-1">컨트랙트 정보</h2>
+          <div className="flex flex-col gap-3 h-full">
+            <h2 className="text-sm font-medium text-gray-400">컨트랙트 정보</h2>
             <div className="bg-gray-800 rounded-lg p-3 text-xs font-mono space-y-1">
               <p className="text-gray-500">이름</p>
               <p className="text-gray-300">
@@ -163,6 +174,20 @@ export default function V2Panel() {
                 {v2Action === 'factory' ? V2_FACTORY_ADDRESS : V2_ROUTER_ADDRESS}
               </a>
             </div>
+
+            {/* ABI */}
+            <div className="flex items-center justify-between">
+              <p className="text-xs text-gray-500">ABI</p>
+              <button
+                onClick={copyAbi}
+                className="text-xs text-gray-500 hover:text-gray-300 border border-gray-700 rounded px-2 py-0.5 transition-colors"
+              >
+                {abiCopied ? '복사됨 ✓' : 'ABI 복사'}
+              </button>
+            </div>
+            <pre className="flex-1 bg-gray-800 border border-gray-700 rounded-lg p-3 text-xs font-mono text-gray-400 overflow-y-auto max-h-96 whitespace-pre-wrap break-all">
+              {JSON.stringify(v2Action === 'factory' ? FACTORY_ABI : ROUTER_ABI, null, 2)}
+            </pre>
           </div>
         ) : (
           <p className="text-gray-700 text-xs text-center py-8">
