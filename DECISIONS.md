@@ -265,12 +265,35 @@ UniswapV2Factory는 내부에 UniswapV2Pair 전체 bytecode를 상수로 품고 
 
 **결과:** 전체 성공. AMM 0.3% 수수료 + 가격 영향 정상 반영 (1 TKA → 0.996 TKB).
 
-**Router 변경점:** `UniswapV2Library.pairFor()`를 `INIT_CODE_HASH` 대신 `Factory.getPair()`로 수정 (테스트넷 간소화).
+**Router 변경점:** `UniswapV2Library.pairFor()`에 `INIT_CODE_PAIR_HASH`를 하드코딩 (표준 방식). `INIT_CODE_PAIR_HASH = 0x01849f1b5d62ec92cb6255b91bb5968f5c4084f663ed79eb719d5ce7e07986b1`.
 
 **발견된 Pad 기능 갭:**
 - ISSUE-7: 배포 이력 페이지네이션 없음 → 반복 배포 시 과거 컨트랙트 접근 불가
 - ISSUE-8: 외부 컨트랙트(Pad 미배포) 관리 불가 → WKRC approve 불가
 - ISSUE-9: 대형 uint256 인코딩 이슈 → deadline `9999999999` EXPIRED
+
+---
+
+## ADR-013: 팀원용 DEX 인프라 배포 (2026-04-10)
+
+**배포 완료 주소:**
+
+| 컨트랙트 | 주소 |
+|---|---|
+| UniswapV2Factory | `0xec1c0fb2ceaa7349b381e5bdd574f6369b4129ce` |
+| UniswapV2Router02 | `0xe56c3f0375ec5644509715c42aa8764d4c857d01` |
+| WKRC (기존) | `0x0000000000000000000000000000000000001000` |
+| INIT_CODE_PAIR_HASH | `0x01849f1b5d62ec92cb6255b91bb5968f5c4084f663ed79eb719d5ce7e07986b1` |
+
+**사양:**
+- Uniswap V2 포크, Solidity 0.8.20으로 포팅
+- Factory: 표준 구조 (Pair bytecode 내장, CREATE2 사용)
+- Router: `pairFor()`에 `INIT_CODE_PAIR_HASH` 하드코딩 (표준 방식)
+- Explorer Contract Verification 가능 확인됨
+
+**배포 방법:** stablenet-pad Generic Upload (Proxy OFF) — ISSUE-6 수정 후 가능해짐.
+
+**ABI 파일 팀원에게 공유 완료.**
 
 ---
 

@@ -42,6 +42,7 @@ export async function GET(req: NextRequest) {
     abi: row.abi as object[] | null,
     createdAt: row.created_at as string,
     pinned: (row.pinned as boolean | null) ?? false,
+    source: ((row.source as string | null) === 'imported' ? 'imported' : 'deployed') as 'deployed' | 'imported',
   }))
 
   return NextResponse.json({ deployments })

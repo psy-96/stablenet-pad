@@ -85,6 +85,7 @@ export default function Home() {
               onDeploy={handleDeploy}
               isDeploying={isDeploying}
               deployerAddress={mounted ? address : undefined}
+              onImportComplete={() => setHistoryKey((k) => k + 1)}
             />
           </div>
 

@@ -1,5 +1,16 @@
 # CHANGELOG.md — stablenet-pad
 
+## 2026-04-13
+
+### ISSUE-7 핀/즐겨찾기 구현
+- `deployments` 테이블 `pinned boolean DEFAULT false` 컬럼 + 복합 인덱스
+- `PATCH /api/deployments/[id]/pin` — pinned 토글 엔드포인트
+- `DeployHistory.tsx` ⭐ 버튼, optimistic update + 실패 시 롤백
+- 핀된 항목 최상단 고정: `ORDER BY pinned DESC, created_at DESC`
+- limit 10 → 50 (핀 기능과 함께 더 넓은 이력 표시)
+
+---
+
 ## 2026-04-10
 
 ### ISSUE-6 수정
@@ -12,6 +23,12 @@
 - Factory 배포 → createPair → ERC20×2 → approve → addLiquidity → swap 성공
 - Uniswap V2 AMM 정상 작동 확인 (0.3% fee, price impact 반영)
 - 발견된 Pad 기능 갭 3개: ISSUE-7, 8, 9 등록
+
+### 팀원용 DEX 인프라 배포
+- Factory: `0xec1c0fb2ceaa7349b381e5bdd574f6369b4129ce`
+- Router: `0xe56c3f0375ec5644509715c42aa8764d4c857d01`
+- INIT_CODE_PAIR_HASH: `0x01849f1b5d62ec92cb6255b91bb5968f5c4084f663ed79eb719d5ce7e07986b1`
+- ABI 파일 팀원 공유 완료
 
 ---
 

@@ -110,10 +110,12 @@ export default function DeployHistory({ onSelectDeployment, onManageDeployment }
                       className={`text-xs px-1.5 py-0.5 rounded shrink-0 ${
                         getTemplateById(d.type)
                           ? 'bg-blue-900 text-blue-300'
-                          : 'bg-gray-700 text-gray-400'
+                          : d.source === 'imported'
+                            ? 'bg-purple-900 text-purple-300'
+                            : 'bg-gray-700 text-gray-400'
                       }`}
                     >
-                      {getTemplateById(d.type) ? d.type : 'General'}
+                      {getTemplateById(d.type) ? d.type : d.source === 'imported' ? 'Imported' : 'General'}
                     </span>
                     <span className="text-sm text-gray-300 truncate">{d.contractName}</span>
                   </div>

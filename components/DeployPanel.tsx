@@ -6,8 +6,9 @@ import { TEMPLATE_REGISTRY } from '@/lib/template-registry'
 import ContractParamsForm from './ContractParamsForm'
 import TemplateCatalog from './TemplateCatalog'
 import GenericDeploySection from './GenericDeploySection'
+import ImportContractForm from './ImportContractForm'
 
-type DeployMode = 'template' | 'upload'
+type DeployMode = 'template' | 'upload' | 'import'
 
 interface Props {
   onDeploy: (params: {
@@ -19,9 +20,10 @@ interface Props {
   }) => void
   isDeploying: boolean
   deployerAddress: string | undefined
+  onImportComplete?: () => void
 }
 
-export default function DeployPanel({ onDeploy, isDeploying, deployerAddress }: Props) {
+export default function DeployPanel({ onDeploy, isDeploying, deployerAddress, onImportComplete }: Props) {
   const [mode, setMode] = useState<DeployMode>('template')
 
   // 템플릿 모드
@@ -98,19 +100,21 @@ export default function DeployPanel({ onDeploy, isDeploying, deployerAddress }: 
       <h2 className="text-sm font-medium text-gray-400">배포 패널</h2>
 
       {/* 모드 탭 */}
-      <div className="flex gap-2">
-        {(['template', 'upload'] as DeployMode[]).map((m) => (
+      <div className="flex gap-1.5">
+        {(['template', 'upload', 'import'] as DeployMode[]).map((m) => (
           <button
             key={m}
             onClick={() => switchMode(m)}
             className={`
-              flex-1 py-2 text-sm rounded-lg border transition-colors
+              flex-1 py-1.5 text-xs rounded-lg border transition-colors
               ${mode === m
-                ? 'bg-blue-600 border-blue-500 text-white'
+                ? m === 'import'
+                  ? 'bg-purple-700 border-purple-600 text-white'
+                  : 'bg-blue-600 border-blue-500 text-white'
                 : 'bg-gray-800 border-gray-700 text-gray-400 hover:border-gray-600'}
             `}
           >
-            {m === 'template' ? '템플릿 선택' : '파일 업로드'}
+            {m === 'template' ? '템플릿 선택' : m === 'upload' ? '파일 업로드' : '임포트'}
           </button>
         ))}
       </div>
@@ -237,11 +241,18 @@ export default function DeployPanel({ onDeploy, isDeploying, deployerAddress }: 
       )}
 
       {/* 업로드 모드 — GenericDeploySection이 전체 UX 담당 */}
-      {!isTemplate && (
+      {mode === 'upload' && (
         <GenericDeploySection
           onDeploy={(params) => onDeploy({ ...params, file: params.file })}
           isDeploying={isDeploying}
           deployerAddress={deployerAddress}
+        />
+      )}
+
+      {/* 임포트 모드 */}
+      {mode === 'import' && (
+        <ImportContractForm
+          onImportComplete={() => onImportComplete?.()}
         />
       )}
     </div>

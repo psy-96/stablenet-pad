@@ -42,6 +42,7 @@ export interface DeploymentResult {
   abi: object[] | null
   createdAt: string
   pinned: boolean
+  source: 'deployed' | 'imported'
 }
 
 export interface DeploymentArtifact {
