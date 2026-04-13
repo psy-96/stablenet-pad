@@ -1,13 +1,13 @@
 'use client'
 
-import { useState, useMemo } from 'react'
-import type { DeploymentResult, ActionFunctionDef, ReadFunctionDef } from '@/types'
+import { useState, useMemo, useEffect, useCallback } from 'react'
+import type { DeploymentResult, ActionFunctionDef, ReadFunctionDef, ActionHistoryItem, ActionHistoryResponse } from '@/types'
 import { abiWriteFunctionsToActions } from '@/lib/template-registry'
 import { abiReadFunctionsToActions } from '@/lib/abi-utils'
 import { useContractAction } from '@/hooks/useContractAction'
-import { explorerAddressUrl } from '@/lib/stablenet'
+import { explorerAddressUrl, explorerTxUrl } from '@/lib/stablenet'
 
-type Tab = 'write' | 'read'
+type Tab = 'write' | 'read' | 'history'
 
 interface Props {
   deployment: DeploymentResult
@@ -28,7 +28,14 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
   const [readError, setReadError] = useState<string | null>(null)
   const [isReading, setIsReading] = useState(false)
 
+  // History tab state
+  const [historyItems, setHistoryItems] = useState<ActionHistoryItem[]>([])
+  const [historyLoading, setHistoryLoading] = useState(false)
+  const [expandedId, setExpandedId] = useState<string | null>(null)
+
   const { actionLogs, isExecuting, lastEvents, executeAction, clearActionLogs } = useContractAction()
+
+  const contractAddress = deployment.proxyAddress ?? deployment.implementationAddress
 
   const writeFunctions = useMemo(() => {
     if (!deployment.abi) return []
@@ -53,6 +60,26 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
     setReadError(null)
   }
 
+  const fetchHistory = useCallback(async () => {
+    if (!contractAddress) return
+    setHistoryLoading(true)
+    try {
+      const res = await fetch(`/api/actions?contract_address=${contractAddress}`)
+      const data = (await res.json()) as ActionHistoryResponse
+      setHistoryItems(data.actions ?? [])
+    } catch {
+      // 무시 — 이력 조회 실패는 UX에 치명적이지 않음
+    } finally {
+      setHistoryLoading(false)
+    }
+  }, [contractAddress])
+
+  useEffect(() => {
+    if (tab === 'history') {
+      void fetchHistory()
+    }
+  }, [tab, fetchHistory])
+
   function setValue(key: string, val: string) {
     setFormValues((prev) => ({ ...prev, [key]: val }))
   }
@@ -76,8 +103,6 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
     }
     return true
   }
-
-  const contractAddress = deployment.proxyAddress ?? deployment.implementationAddress
 
   async function handleExecute() {
     if (!selectedFn || !contractAddress) return
@@ -151,7 +176,7 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
         </button>
       </div>
 
-      {/* Write / Read 탭 */}
+      {/* Write / Read / 이력 탭 */}
       <div className="flex gap-1 border-b border-gray-800 pb-0">
         <button
           onClick={() => setTab('write')}
@@ -172,6 +197,16 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
           }`}
         >
           Read
+        </button>
+        <button
+          onClick={() => setTab('history')}
+          className={`px-3 py-1.5 text-xs font-medium rounded-t transition-colors ${
+            tab === 'history'
+              ? 'bg-gray-800 text-blue-400 border border-b-gray-800 border-gray-700'
+              : 'text-gray-600 hover:text-gray-400'
+          }`}
+        >
+          이력
         </button>
       </div>
 
@@ -281,6 +316,118 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
               )}
             </>
           )}
+        </div>
+      )}
+
+      {/* ── 이력 탭 ─────────────────────────────────────────────── */}
+      {tab === 'history' && (
+        <div className="flex flex-col gap-2 flex-1 overflow-y-auto">
+          <div className="flex items-center justify-between">
+            <p className="text-xs text-gray-500">최근 액션 이력</p>
+            <button
+              onClick={() => void fetchHistory()}
+              className="text-xs text-gray-600 hover:text-gray-400 transition-colors"
+            >
+              새로고침
+            </button>
+          </div>
+
+          {historyLoading && (
+            <p className="text-gray-600 text-xs text-center py-4">로딩 중...</p>
+          )}
+
+          {!historyLoading && historyItems.length === 0 && (
+            <p className="text-gray-600 text-xs text-center py-4">이력이 없습니다</p>
+          )}
+
+          {!historyLoading && historyItems.map((item) => (
+            <div key={item.id} className="bg-gray-800 rounded-lg overflow-hidden border border-gray-700">
+              {/* Summary row */}
+              <button
+                onClick={() => setExpandedId(expandedId === item.id ? null : item.id)}
+                className="w-full text-left px-3 py-2 hover:bg-gray-750 transition-colors"
+              >
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className={`text-xs shrink-0 ${item.status === 'success' ? 'text-green-400' : 'text-red-400'}`}>
+                      {item.status === 'success' ? '✓' : '✗'}
+                    </span>
+                    <span className="text-xs font-mono text-gray-300 truncate">{item.functionName}()</span>
+                  </div>
+                  <span className="text-xs text-gray-600 shrink-0">
+                    {new Date(item.createdAt).toLocaleString('ko-KR', {
+                      month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit',
+                    })}
+                  </span>
+                </div>
+                {item.txHash && (
+                  <a
+                    href={explorerTxUrl(item.txHash)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    onClick={(e) => e.stopPropagation()}
+                    className="text-xs text-gray-600 hover:text-blue-400 font-mono mt-0.5 block truncate transition-colors"
+                  >
+                    {item.txHash}
+                  </a>
+                )}
+              </button>
+
+              {/* Expanded detail */}
+              {expandedId === item.id && (
+                <div className="border-t border-gray-700 px-3 py-2 flex flex-col gap-2">
+                  {/* Params */}
+                  {item.params && Object.keys(item.params).length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">파라미터</p>
+                      <div className="flex flex-col gap-0.5">
+                        {Object.entries(item.params).map(([k, v]) => (
+                          <div key={k} className="flex gap-2 text-xs font-mono">
+                            <span className="text-gray-500 shrink-0">{k}:</span>
+                            <span className="text-gray-300 break-all">{v}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Events */}
+                  {item.events && item.events.length > 0 && (
+                    <div>
+                      <p className="text-xs text-gray-500 mb-1">이벤트</p>
+                      <div className="flex flex-col gap-1.5">
+                        {item.events.map((evt, i) => (
+                          <div key={i} className="bg-gray-900 rounded px-2 py-1.5">
+                            <p className="text-xs text-blue-400 font-mono mb-0.5">{evt.name}</p>
+                            {Object.entries(evt.args).map(([k, v]) => {
+                              const isAddress = /^0x[0-9a-fA-F]{40}$/.test(v)
+                              return (
+                                <div key={k} className="flex gap-2 text-xs font-mono">
+                                  <span className="text-gray-500 shrink-0">{k}:</span>
+                                  {isAddress ? (
+                                    <a
+                                      href={explorerAddressUrl(v)}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="text-blue-400 hover:text-blue-300 truncate transition-colors"
+                                    >
+                                      {v}
+                                    </a>
+                                  ) : (
+                                    <span className="text-gray-300 break-all">{v}</span>
+                                  )}
+                                </div>
+                              )
+                            })}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ))}
         </div>
       )}
 

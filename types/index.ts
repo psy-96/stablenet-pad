@@ -189,3 +189,22 @@ export interface ContractReadResponse {
   /** BigInt → string, 나머지는 JSON 직렬화 */
   result: string
 }
+
+// ─── ISSUE-1: 액션 이력 ──────────────────────────────────────────────────────
+
+export interface ActionHistoryItem {
+  id: string
+  functionName: string
+  params: Record<string, string> | null
+  txHash: string | null
+  blockNumber: number | null
+  executor: string | null
+  status: 'success' | 'failed'
+  events: ParsedEvent[] | null
+  createdAt: string
+}
+
+// GET /api/actions 응답
+export interface ActionHistoryResponse {
+  actions: ActionHistoryItem[]
+}
