@@ -41,6 +41,7 @@ export interface DeploymentResult {
   status: 'success' | 'failed'
   abi: object[] | null
   createdAt: string
+  pinned: boolean
 }
 
 export interface DeploymentArtifact {

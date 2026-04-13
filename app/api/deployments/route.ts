@@ -11,8 +11,9 @@ export async function GET(req: NextRequest) {
     .from('deployments')
     .select('*')
     .eq('status', 'success')
+    .order('pinned', { ascending: false })
     .order('created_at', { ascending: false })
-    .limit(10)
+    .limit(50)
 
   if (typeFilter) {
     query = query.eq('type', typeFilter)
@@ -40,6 +41,7 @@ export async function GET(req: NextRequest) {
     status: row.status as 'success' | 'failed',
     abi: row.abi as object[] | null,
     createdAt: row.created_at as string,
+    pinned: (row.pinned as boolean | null) ?? false,
   }))
 
   return NextResponse.json({ deployments })
