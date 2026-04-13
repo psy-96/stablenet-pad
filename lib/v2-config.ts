@@ -1,7 +1,9 @@
 import type { DeploymentResult } from '@/types'
 
-export const V2_FACTORY_ADDRESS = '0xec1c0fb2ceaa7349b381e5bdd574f6369b4129ce'
-export const V2_ROUTER_ADDRESS = '0xe56c3f0375ec5644509715c42aa8764d4c857d01'
+export const V2_FACTORY_ADDRESS =
+  process.env.NEXT_PUBLIC_V2_FACTORY_ADDRESS ?? '0xec1c0fb2ceaa7349b381e5bdd574f6369b4129ce'
+export const V2_ROUTER_ADDRESS =
+  process.env.NEXT_PUBLIC_V2_ROUTER_ADDRESS ?? '0xe56c3f0375ec5644509715c42aa8764d4c857d01'
 
 export const FACTORY_ABI = [
   { inputs: [{ internalType: 'address', name: '_feeToSetter', type: 'address' }], stateMutability: 'nonpayable', type: 'constructor' },
