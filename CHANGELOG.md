@@ -1,5 +1,18 @@
 # CHANGELOG.md — stablenet-pad
 
+## 2026-04-14
+
+### V3 풀 플로우 검증 완료 ✅
+- createPool → initialize → approve × 2 → mint → exactInputSingle 전체 성공
+- 1 V3A → 0.996 V3B (0.3% fee 정상 반영)
+- swap tx: `0x0d352deee6e2e721a2e14ee8cdb9056e34457c675c9814b403ba2dbfab3fafb0`
+
+### fix: initialize() 필터링 해제
+- `abiWriteFunctionsToActions`에서 `initialize` 제외 로직 제거
+- V3 Pool `initialize(uint160 sqrtPriceX96)` 이제 Write 탭에 표시됨
+
+---
+
 ## 2026-04-13 (latest)
 
 ### V3 메뉴 UI 추가

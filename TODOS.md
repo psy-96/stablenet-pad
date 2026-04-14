@@ -9,12 +9,15 @@
 
 ---
 
-## 다음 작업
-
-### V3 풀 플로우 테스트
-- V3 메뉴 UI 완료. 다음 단계: createPool → mint → swap 실제 실행 검증
-- PositionManager `mint(MintParams)` — tuple 파라미터 UI로 실행 가능
-- SwapRouter `exactInputSingle(ExactInputSingleParams)` — tuple 파라미터 UI로 실행 가능
+## 완료: V3 풀 플로우 검증 ✅ (2026-04-14)
+- Factory `createPool(tokenA, tokenB, fee)` → Pool 주소 반환
+- Pool `initialize(sqrtPriceX96)` → 초기 가격 세팅
+- ERC20 × 2 `approve` (PositionManager에 허용)
+- PositionManager `mint(MintParams)` — tuple 파라미터 UI로 실행 성공
+- SwapRouter `exactInputSingle(ExactInputSingleParams)` — tuple 파라미터 UI로 실행 성공
+- 결과: 1 V3A → 0.996 V3B (0.3% fee 정상 반영)
+- swap tx: `0x0d352deee6e2e721a2e14ee8cdb9056e34457c675c9814b403ba2dbfab3fafb0`
+- 발견 및 수정: `initialize()` 필터링 버그 → `abiWriteFunctionsToActions`에서 제거
 
 ---
 

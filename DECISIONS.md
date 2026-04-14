@@ -344,6 +344,33 @@ V3 PositionManager의 `mint(MintParams)`, SwapRouter의 `exactInputSingle(ExactI
 
 ---
 
+## ADR-016: V3 풀 플로우 검증 결과 (2026-04-14)
+
+**목적:** stablenet-pad의 tuple 파라미터 UI로 Uniswap V3 전체 플로우 실행 가능 여부 검증
+
+**검증 순서:**
+1. V3 Factory `createPool(tokenA, tokenB, fee=3000)` — Pool 컨트랙트 생성
+2. V3 Pool `initialize(sqrtPriceX96)` — 초기 가격 세팅 (1:1 기준)
+3. ERC20(V3A) `approve(positionManager, amount)` — 유동성 공급 허용
+4. ERC20(V3B) `approve(positionManager, amount)` — 유동성 공급 허용
+5. PositionManager `mint(MintParams)` — tuple 파라미터 UI로 실행
+6. SwapRouter `exactInputSingle(ExactInputSingleParams)` — tuple 파라미터 UI로 실행
+
+**결과:** 전체 성공.
+- 1 V3A → 0.996 V3B (0.3% fee 정상 반영)
+- swap tx: `0x0d352deee6e2e721a2e14ee8cdb9056e34457c675c9814b403ba2dbfab3fafb0`
+
+**발견된 이슈 및 수정:**
+- `abiWriteFunctionsToActions`에서 `initialize()` 함수를 필터링하고 있어 V3 Pool의 `initialize(uint160)` 호출 불가
+- 원래 필터 의도: UUPS Proxy의 `initialize()`는 배포 시 이미 호출됨 → Write 탭에 불필요
+- 하지만 V3 Pool의 `initialize(sqrtPriceX96)`는 배포 후 반드시 별도 호출이 필요한 함수
+- 결정: 필터 제거. UUPS Proxy의 `initialize()`가 Write 탭에 노출되어도 실제로는 호출해봤자 revert되므로 해롭지 않음. 반면 V3 Pool처럼 반드시 호출해야 하는 케이스를 막는 게 더 문제.
+
+**학습 포인트:**
+함수 이름만으로 필터링하는 것은 위험하다. `initialize`라는 이름이 UUPS Proxy 패턴에서는 "이미 호출됨"을 의미하지만, V3 Pool에서는 "배포 후 필수 초기화"를 의미한다. 동일한 이름이 다른 의미를 가질 수 있으므로, 이름 기반 필터링보다 컨텍스트가 더 중요하다.
+
+---
+
 ## 문서 관리 규칙
 
 - 새로운 설계 결정이 있을 때마다 ADR-NNN 추가
