@@ -31,7 +31,13 @@ export const TEMPLATE_REGISTRY: TemplateDefinition[] = [
     params: [
       { key: 'name', label: '토큰 이름', type: 'text' },
       { key: 'symbol', label: '심볼', type: 'text' },
-      { key: 'initialSupply', label: '초기 발행량 (최소 단위)', type: 'uint256' },
+      {
+        key: 'initialSupply',
+        label: '초기 발행량 (개수)',
+        type: 'uint256',
+        placeholder: '예: 1000000',
+        hint: '입력값 × 10¹⁸ 기준으로 발행됩니다. 예: 1000000 → 1,000,000 토큰',
+      },
     ],
   },
   {
