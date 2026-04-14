@@ -8,6 +8,7 @@ import LogStream from './LogStream'
 import ResultPanel from './ResultPanel'
 import DeployHistory from './DeployHistory'
 import ContractActionPanel from './ContractActionPanel'
+import GuideModal from './GuideModal'
 import { explorerAddressUrl } from '@/lib/stablenet'
 import {
   V2_FACTORY_ADDRESS,
@@ -28,6 +29,7 @@ export default function V2Panel() {
   const [selectedDeployment, setSelectedDeployment] = useState<DeploymentResult | null>(null)
   const [managedDeployment, setManagedDeployment] = useState<DeploymentResult | null>(null)
   const [abiCopied, setAbiCopied] = useState(false)
+  const [guideOpen, setGuideOpen] = useState(false)
 
   function copyAbi() {
     const abi = v2Action === 'factory' ? FACTORY_ABI : ROUTER_ABI
@@ -72,7 +74,15 @@ export default function V2Panel() {
       {/* ── 왼쪽: 빠른 작업 버튼 + 배포 이력 ── */}
       <div className="flex flex-col gap-4 overflow-hidden">
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
-          <h2 className="text-sm font-medium text-gray-400 mb-3">V2 빠른 작업</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-medium text-gray-400">V2 빠른 작업</h2>
+            <button
+              onClick={() => setGuideOpen(true)}
+              className="text-xs text-gray-500 hover:text-gray-300 border border-gray-700 rounded px-2 py-0.5 transition-colors"
+            >
+              가이드
+            </button>
+          </div>
           <div className="flex flex-col gap-2">
             <button
               onClick={() => selectAction('erc20')}
@@ -255,6 +265,36 @@ export default function V2Panel() {
           </div>
         )}
       </div>
+
+      {guideOpen && (
+        <GuideModal
+          title="UniswapV2 시작 가이드"
+          steps={[
+            {
+              title: '1단계: ERC20 토큰 2개 배포',
+              tip: 'ERC20 토큰 생성 → Proxy OFF → 토큰 이름·심볼·초기 발행량 입력 후 배포. TokenA와 TokenB 각각 반복.',
+            },
+            {
+              title: '2단계: Factory → createPair(TokenA, TokenB)',
+              tip: 'Factory 관리 탭 → createPair 실행. 두 토큰 주소를 입력하면 Pair 컨트랙트가 생성됩니다.',
+            },
+            {
+              title: '3단계: 두 토큰 approve → Router 주소',
+              tip: '배포 이력에서 각 토큰 관리 → approve(spender=Router주소, amount=충분한값). 첫 유동성 공급 전 필수.',
+            },
+            {
+              title: '4단계: Router → addLiquidity',
+              tip: '첫 유동성이 가격 비율을 결정합니다. tokenA/tokenB 주소, amountDesired 2개, amountMin 2개(기본 0), to, deadline(기본값) 입력.',
+            },
+            {
+              title: '5단계: Router → swapExactTokensForTokens',
+              tip: 'amountIn, amountOutMin(기본 0), path=[TokenA주소,TokenB주소], to, deadline 입력. path 순서가 스왑 방향을 결정합니다.',
+            },
+          ]}
+          footer="단위 참고: 1 토큰 = 1000000000000000000 (18 decimals)"
+          onClose={() => setGuideOpen(false)}
+        />
+      )}
     </div>
   )
 }

@@ -8,6 +8,7 @@ import LogStream from './LogStream'
 import ResultPanel from './ResultPanel'
 import DeployHistory from './DeployHistory'
 import ContractActionPanel from './ContractActionPanel'
+import GuideModal from './GuideModal'
 import { explorerAddressUrl } from '@/lib/stablenet'
 import {
   V3_FACTORY_ADDRESS,
@@ -45,6 +46,7 @@ export default function V3Panel() {
   const [selectedDeployment, setSelectedDeployment] = useState<DeploymentResult | null>(null)
   const [managedDeployment, setManagedDeployment] = useState<DeploymentResult | null>(null)
   const [abiCopied, setAbiCopied] = useState(false)
+  const [guideOpen, setGuideOpen] = useState(false)
 
   function copyAbi() {
     if (!v3Action || v3Action === 'erc20') return
@@ -114,7 +116,15 @@ export default function V3Panel() {
       {/* ── 왼쪽: 빠른 작업 버튼 + 배포 이력 ── */}
       <div className="flex flex-col gap-4 overflow-hidden">
         <div className="bg-gray-900 rounded-xl border border-gray-800 p-4">
-          <h2 className="text-sm font-medium text-gray-400 mb-3">V3 빠른 작업</h2>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-medium text-gray-400">V3 빠른 작업</h2>
+            <button
+              onClick={() => setGuideOpen(true)}
+              className="text-xs text-gray-500 hover:text-gray-300 border border-gray-700 rounded px-2 py-0.5 transition-colors"
+            >
+              가이드
+            </button>
+          </div>
           <div className="flex flex-col gap-2">
             <button
               onClick={() => selectAction('erc20')}
@@ -322,6 +332,40 @@ export default function V3Panel() {
           </div>
         )}
       </div>
+
+      {guideOpen && (
+        <GuideModal
+          title="UniswapV3 시작 가이드"
+          steps={[
+            {
+              title: '1단계: ERC20 토큰 2개 배포',
+              tip: 'ERC20 토큰 생성 → Proxy OFF → 이름·심볼·초기 발행량 입력 후 배포. TokenA와 TokenB 각각 반복.',
+            },
+            {
+              title: '2단계: Factory → createPool(TokenA, TokenB, fee)',
+              tip: 'Factory 관리 탭 → createPool 실행. fee는 500(0.05%)·3000(0.3%)·10000(1%) 중 선택. 성공 시 배포 이력에 Pool이 자동 등록됩니다.',
+            },
+            {
+              title: '3단계: Pool → initialize(sqrtPriceX96)',
+              tip: '배포 이력에서 Pool 관리 → initialize 실행. sqrtPriceX96 = √(tokenB/tokenA) × 2^96. 1:1 비율이면 79228162514264337593543950336.',
+            },
+            {
+              title: '4단계: 두 토큰 approve → PositionManager 주소',
+              tip: '각 토큰 관리 → approve(spender=PositionManager주소, amount=충분한값). mint 전 반드시 실행.',
+            },
+            {
+              title: '5단계: PositionManager → mint',
+              tip: '유동성 범위(tickLower/tickUpper)와 amount0Desired/amount1Desired를 입력. 처음이라면 tickLower=-887220, tickUpper=887220(전 범위)로 시작.',
+            },
+            {
+              title: '6단계: SwapRouter → exactInputSingle',
+              tip: 'tokenIn/tokenOut/fee/recipient/deadline/amountIn/amountOutMinimum(기본 0)/sqrtPriceLimitX96(기본 0) 입력. approve 먼저 확인.',
+            },
+          ]}
+          footer="단위 참고: 1 토큰 = 1000000000000000000 (18 decimals)"
+          onClose={() => setGuideOpen(false)}
+        />
+      )}
     </div>
   )
 }
