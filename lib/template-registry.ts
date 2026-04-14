@@ -133,7 +133,6 @@ function arrayItemType(solType: string): string {
  *
  * - view / pure 함수 제외
  * - constructor / fallback / receive 제외
- * - initialize() 제외 (배포 시 이미 호출됨)
  * - upgradeTo / upgradeToAndCall 은 포함 (일반 write 함수로 처리)
  */
 export function abiWriteFunctionsToActions(abi: AbiItem[]): ActionFunctionDef[] {
@@ -142,7 +141,6 @@ export function abiWriteFunctionsToActions(abi: AbiItem[]): ActionFunctionDef[] 
   for (const item of abi) {
     if (item.type !== 'function') continue
     if (!item.name) continue
-    if (item.name === 'initialize') continue
     const mut = item.stateMutability
     if (mut !== 'nonpayable' && mut !== 'payable') continue
 

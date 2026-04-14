@@ -19,9 +19,9 @@ const SAMPLE_ABI = [
 ]
 
 describe('abiWriteFunctionsToActions', () => {
-  it('excludes initialize()', () => {
+  it('includes initialize()', () => {
     const fns = abiWriteFunctionsToActions(SAMPLE_ABI)
-    expect(fns.find((f) => f.name === 'initialize')).toBeUndefined()
+    expect(fns.find((f) => f.name === 'initialize')).toBeDefined()
   })
 
   it('excludes view functions', () => {
