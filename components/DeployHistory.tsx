@@ -186,7 +186,7 @@ export default function DeployHistory({ onSelectDeployment, onManageDeployment }
                   onClick={() => onManageDeployment(d)}
                   className="text-xs text-gray-400 hover:text-gray-300 border border-gray-600 rounded px-2 py-0.5 transition-colors"
                 >
-                  관리 (write 함수 실행)
+                  관리
                 </button>
               </div>
             )}

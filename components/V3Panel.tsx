@@ -19,8 +19,9 @@ import {
   V3_FACTORY_DEPLOYMENT,
   V3_POSITION_MANAGER_DEPLOYMENT,
   V3_SWAP_ROUTER_DEPLOYMENT,
+  V3_POOL_ABI,
 } from '@/lib/v3-config'
-import type { DeploymentResult } from '@/types'
+import type { DeploymentResult, ParsedEvent } from '@/types'
 
 type V3Action = 'erc20' | 'factory' | 'positionManager' | 'swapRouter'
 
@@ -69,6 +70,29 @@ export default function V3Panel() {
   async function handleDeploy(params: Parameters<typeof deploy>[0]) {
     setSelectedDeployment(null)
     await deploy(params)
+    setHistoryKey((k) => k + 1)
+  }
+
+  async function handleFactoryActionSuccess(fnName: string, events: ParsedEvent[] | null) {
+    if (fnName !== 'createPool') return
+    const poolCreated = events?.find((e) => e.name === 'PoolCreated')
+    if (!poolCreated) return
+    const pool = poolCreated.args['pool']
+    if (!pool) return
+    const token0 = poolCreated.args['token0'] ?? ''
+    const token1 = poolCreated.args['token1'] ?? ''
+    const t0short = token0.length >= 8 ? token0.slice(2, 8) : token0.replace('0x', '')
+    const t1short = token1.length >= 8 ? token1.slice(2, 8) : token1.replace('0x', '')
+    const name = `V3Pool_${t0short}_${t1short}`
+    try {
+      await fetch('/api/deployments/import', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name, address: pool, abi: V3_POOL_ABI }),
+      })
+    } catch {
+      // 실패해도 무시 — 수동으로 import 가능
+    }
     setHistoryKey((k) => k + 1)
   }
 
@@ -272,6 +296,7 @@ export default function V3Panel() {
           <ContractActionPanel
             deployment={V3_FACTORY_DEPLOYMENT}
             onClose={() => setV3Action(null)}
+            onActionSuccess={(fn, evts) => void handleFactoryActionSuccess(fn, evts)}
           />
         )}
 

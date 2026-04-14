@@ -11,6 +11,11 @@ export type ActionLogEntry = {
   type: 'info' | 'success' | 'error'
 }
 
+export interface ActionResult {
+  success: boolean
+  events: ParsedEvent[] | null
+}
+
 interface UseContractActionResult {
   actionLogs: ActionLogEntry[]
   isExecuting: boolean
@@ -22,7 +27,7 @@ interface UseContractActionResult {
     fn: ActionFunctionDef
     /** 폼에서 수집한 파라미터 (key → string 값) */
     formValues: Record<string, string>
-  }) => Promise<void>
+  }) => Promise<ActionResult>
   clearActionLogs: () => void
 }
 
@@ -81,10 +86,10 @@ export function useContractAction(): UseContractActionResult {
       abi: object[]
       fn: ActionFunctionDef
       formValues: Record<string, string>
-    }) => {
+    }): Promise<ActionResult> => {
       if (!address) {
         addLog('MetaMask 연결이 필요합니다', 'error')
-        return
+        return { success: false, events: null }
       }
 
       setIsExecuting(true)
@@ -156,6 +161,7 @@ export function useContractAction(): UseContractActionResult {
 
         const confirmJson = (await confirmRes.json()) as ActionConfirmResponse | { success: false; error: string }
 
+        let successEvents: ParsedEvent[] | null = null
         if (confirmRes.status === 400) {
           // tx revert — 실패로 처리
           const errMsg = 'error' in confirmJson ? confirmJson.error : '트랜잭션 실패 (revert)'
@@ -164,16 +170,19 @@ export function useContractAction(): UseContractActionResult {
           // Supabase 등 서버 오류 — tx는 성공, 이력 저장만 실패
           addLog('액션 이력 저장 실패 (온체인 실행은 완료됨)', 'error')
         } else {
-          const result = confirmJson as ActionConfirmResponse
-          if (result.events && result.events.length > 0) {
-            setLastEvents(result.events)
+          const confirmed = confirmJson as ActionConfirmResponse
+          if (confirmed.events && confirmed.events.length > 0) {
+            setLastEvents(confirmed.events)
+            successEvents = confirmed.events
           }
         }
 
         addLog(`${fn.name}() 실행 완료 ✓`, 'success')
+        return { success: true, events: successEvents }
       } catch (err) {
         const msg = err instanceof Error ? err.message : '알 수 없는 오류'
         addLog(msg, 'error')
+        return { success: false, events: null }
       } finally {
         setIsExecuting(false)
       }

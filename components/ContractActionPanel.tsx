@@ -5,6 +5,7 @@ import type { DeploymentResult, ActionFunctionDef, ReadFunctionDef, ActionHistor
 import { abiWriteFunctionsToActions } from '@/lib/template-registry'
 import { abiReadFunctionsToActions } from '@/lib/abi-utils'
 import { useContractAction } from '@/hooks/useContractAction'
+import type { ParsedEvent } from '@/types'
 import { explorerAddressUrl, explorerTxUrl } from '@/lib/stablenet'
 
 type Tab = 'write' | 'read' | 'history'
@@ -31,9 +32,10 @@ const PARAM_PLACEHOLDERS: Record<string, string> = {
 interface Props {
   deployment: DeploymentResult
   onClose: () => void
+  onActionSuccess?: (fnName: string, events: ParsedEvent[] | null) => void
 }
 
-export default function ContractActionPanel({ deployment, onClose }: Props) {
+export default function ContractActionPanel({ deployment, onClose, onActionSuccess }: Props) {
   const [tab, setTab] = useState<Tab>('write')
 
   // Write tab state
@@ -167,13 +169,16 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
         effectiveValues[p.key] = PARAM_DEFAULTS[p.key]
       }
     }
-    await executeAction({
+    const result = await executeAction({
       deploymentRowId: deployment.id,
       proxyAddress: contractAddress,
       abi: deployment.abi!,
       fn: selectedFn,
       formValues: effectiveValues,
     })
+    if (result.success) {
+      onActionSuccess?.(selectedFn.name, result.events)
+    }
   }
 
   async function handleRead() {
