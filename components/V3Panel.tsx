@@ -42,6 +42,7 @@ export default function V3Panel() {
   const [v3Action, setV3Action] = useState<V3Action | null>(null)
   const [historyKey, setHistoryKey] = useState(0)
   const [selectedDeployment, setSelectedDeployment] = useState<DeploymentResult | null>(null)
+  const [managedDeployment, setManagedDeployment] = useState<DeploymentResult | null>(null)
   const [abiCopied, setAbiCopied] = useState(false)
 
   function copyAbi() {
@@ -74,6 +75,7 @@ export default function V3Panel() {
   function selectAction(action: V3Action) {
     setV3Action(action)
     setSelectedDeployment(null)
+    setManagedDeployment(null)
   }
 
   const panelProxyAddress = selectedDeployment ? selectedDeployment.proxyAddress : deployedProxyAddress
@@ -175,9 +177,14 @@ export default function V3Panel() {
             key={historyKey}
             onSelectDeployment={(d) => {
               setSelectedDeployment(d)
+              setManagedDeployment(null)
               if (v3Action !== 'erc20') setV3Action('erc20')
             }}
-            onManageDeployment={undefined}
+            onManageDeployment={(d) => {
+              setManagedDeployment(d)
+              setSelectedDeployment(null)
+              setV3Action('erc20')
+            }}
           />
         </div>
       </div>
@@ -233,7 +240,14 @@ export default function V3Panel() {
 
       {/* ── 오른쪽: 메인 패널 ── */}
       <div className="bg-gray-900 rounded-xl border border-gray-800 p-4 overflow-y-auto">
-        {v3Action === 'erc20' && (
+        {v3Action === 'erc20' && managedDeployment && (
+          <ContractActionPanel
+            deployment={managedDeployment}
+            onClose={() => setManagedDeployment(null)}
+          />
+        )}
+
+        {v3Action === 'erc20' && !managedDeployment && (
           deployedProxyAddress ?? deployedImplAddress ?? selectedDeployment ? (
             <ResultPanel
               proxyAddress={panelProxyAddress}

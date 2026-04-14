@@ -9,6 +9,25 @@ import { explorerAddressUrl, explorerTxUrl } from '@/lib/stablenet'
 
 type Tab = 'write' | 'read' | 'history'
 
+/** 파라미터 이름 기반 기본값 */
+const PARAM_DEFAULTS: Record<string, string> = {
+  deadline: '99999999999999',
+  amountMin: '0',
+  amount0Min: '0',
+  amount1Min: '0',
+  amountOutMinimum: '0',
+  sqrtPriceLimitX96: '0',
+}
+
+const PARAM_PLACEHOLDERS: Record<string, string> = {
+  deadline: '기본: 99999999999999',
+  amountMin: '기본: 0 (슬리피지 미제한)',
+  amount0Min: '기본: 0 (슬리피지 미제한)',
+  amount1Min: '기본: 0 (슬리피지 미제한)',
+  amountOutMinimum: '기본: 0',
+  sqrtPriceLimitX96: '기본: 0 (제한 없음)',
+}
+
 interface Props {
   deployment: DeploymentResult
   onClose: () => void
@@ -49,7 +68,19 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
 
   function selectFn(fn: ActionFunctionDef) {
     setSelectedFn(fn)
-    setFormValues({})
+    const initial: Record<string, string> = {}
+    for (const p of fn.params) {
+      if (p.type === 'tuple' && p.components) {
+        for (const c of p.components) {
+          if (c.key in PARAM_DEFAULTS) {
+            initial[`${p.key}.${c.key}`] = PARAM_DEFAULTS[c.key]
+          }
+        }
+      } else if (p.key in PARAM_DEFAULTS) {
+        initial[p.key] = PARAM_DEFAULTS[p.key]
+      }
+    }
+    setFormValues(initial)
     clearActionLogs()
   }
 
@@ -103,12 +134,14 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
           if (c.type === 'disabled') return false
           if (c.type === 'bool') continue
           const sv = formValues[`${p.key}.${c.key}`] ?? ''
-          if (!sv.trim()) return false
-          if (c.type === 'address' && (sv.length !== 42 || !sv.startsWith('0x'))) return false
+          const effective = sv.trim() || (PARAM_DEFAULTS[c.key] ?? '')
+          if (!effective) return false
+          if (c.type === 'address' && (effective.length !== 42 || !effective.startsWith('0x'))) return false
         }
         continue
       }
-      if (!val.trim()) return false
+      const effective = val.trim() || (PARAM_DEFAULTS[p.key] ?? '')
+      if (!effective) return false
       if (p.type === 'address' && (val.length !== 42 || !val.startsWith('0x'))) return false
       if (p.type === 'uint256') {
         const isSigned = /^int\d*$/.test(p.solType)
@@ -120,12 +153,26 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
 
   async function handleExecute() {
     if (!selectedFn || !contractAddress) return
+    // 빈 칸이고 기본값이 있으면 기본값으로 채움
+    const effectiveValues = { ...formValues }
+    for (const p of selectedFn.params) {
+      if (p.type === 'tuple' && p.components) {
+        for (const c of p.components) {
+          const key = `${p.key}.${c.key}`
+          if (!effectiveValues[key]?.trim() && c.key in PARAM_DEFAULTS) {
+            effectiveValues[key] = PARAM_DEFAULTS[c.key]
+          }
+        }
+      } else if (!effectiveValues[p.key]?.trim() && p.key in PARAM_DEFAULTS) {
+        effectiveValues[p.key] = PARAM_DEFAULTS[p.key]
+      }
+    }
     await executeAction({
       deploymentRowId: deployment.id,
       proxyAddress: contractAddress,
       abi: deployment.abi!,
       fn: selectedFn,
-      formValues,
+      formValues: effectiveValues,
     })
   }
 
@@ -607,7 +654,7 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
                                       : e.target.value.replace(/\D/g, '')
                                     setValue(subKey, v)
                                   }}
-                                  placeholder={signed ? '정수 (음수 가능)' : '숫자 입력'}
+                                  placeholder={signed ? '정수 (음수 가능)' : (PARAM_PLACEHOLDERS[c.key] ?? '숫자 입력')}
                                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-blue-500" />
                               </div>
                             )
@@ -692,7 +739,7 @@ export default function ContractActionPanel({ deployment, onClose }: Props) {
                             : e.target.value.replace(/\D/g, '')
                           setValue(p.key, v)
                         }}
-                        placeholder={/^int\d*$/.test(p.solType) ? '정수 (음수 가능)' : '숫자 입력'}
+                        placeholder={/^int\d*$/.test(p.solType) ? '정수 (음수 가능)' : (PARAM_PLACEHOLDERS[p.key] ?? '숫자 입력')}
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500"
                       />
                     </div>

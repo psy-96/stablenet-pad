@@ -14,6 +14,7 @@ export default function DeployHistory({ onSelectDeployment, onManageDeployment }
   const [deployments, setDeployments] = useState<DeploymentResult[]>([])
   const [loading, setLoading] = useState(false)
   const [pinningId, setPinningId] = useState<string | null>(null)
+  const [searchQuery, setSearchQuery] = useState('')
 
   const fetchDeployments = useCallback(async () => {
     setLoading(true)
@@ -77,7 +78,18 @@ export default function DeployHistory({ onSelectDeployment, onManageDeployment }
     return <p className="text-gray-600 text-xs text-center py-4">배포 이력 로딩 중...</p>
   }
 
-  if (deployments.length === 0) {
+  const filtered = searchQuery.trim()
+    ? deployments.filter((d) => {
+        const q = searchQuery.toLowerCase()
+        return (
+          d.contractName.toLowerCase().includes(q) ||
+          (d.proxyAddress ?? '').toLowerCase().includes(q) ||
+          (d.implementationAddress ?? '').toLowerCase().includes(q)
+        )
+      })
+    : deployments
+
+  if (deployments.length === 0 && !loading) {
     return <p className="text-gray-700 text-xs text-center py-4">배포 이력이 없습니다</p>
   }
 
@@ -93,8 +105,20 @@ export default function DeployHistory({ onSelectDeployment, onManageDeployment }
         </button>
       </div>
 
+      <input
+        type="text"
+        value={searchQuery}
+        onChange={(e) => setSearchQuery(e.target.value)}
+        placeholder="이름 또는 주소 검색..."
+        className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-blue-500"
+      />
+
+      {filtered.length === 0 && searchQuery.trim() && (
+        <p className="text-gray-600 text-xs text-center py-2">검색 결과 없음</p>
+      )}
+
       <div className="space-y-1">
-        {deployments.map((d) => (
+        {filtered.map((d) => (
           <div
             key={d.id}
             className={`rounded-lg overflow-hidden ${d.pinned ? 'bg-gray-750 ring-1 ring-yellow-800/50' : 'bg-gray-800'}`}
