@@ -115,7 +115,6 @@ async function main() {
       console.log(`    length: ${(parsed?.args[3] as bigint).toString()}`)
 
       // allPairs 확인
-      const pairAddr = parsed?.args.pair as string
       const allLen = await factoryContract.allPairsLength()
       console.log(`\n  allPairs.length: ${allLen.toString()}`)
       console.log(`  getPair[A][B]:   ${(await factoryContract.getPair(tokenAAddr, tokenBAddr)) as string}`)

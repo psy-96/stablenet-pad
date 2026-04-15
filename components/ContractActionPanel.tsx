@@ -29,6 +29,63 @@ const PARAM_PLACEHOLDERS: Record<string, string> = {
   sqrtPriceLimitX96: '기본: 0 (제한 없음)',
 }
 
+/** 파라미터 이름 기반 매직넘버 프리셋 */
+interface Preset { label: string; value: string }
+
+const PARAM_PRESETS: Record<string, Preset[]> = {
+  fee: [
+    { label: '0.01%', value: '100' },
+    { label: '0.05%', value: '500' },
+    { label: '0.3%', value: '3000' },
+    { label: '1%', value: '10000' },
+  ],
+  sqrtPriceX96: [
+    { label: '1:1', value: '79228162514264337593543950336' },
+    { label: '10:1', value: '250541448375047931186413801569' },
+    { label: '100:1', value: '792281625142643375935439503360' },
+  ],
+}
+
+const TICK_RANGE_PRESETS: { label: string; lower: string; upper: string }[] = [
+  { label: '전체 범위', lower: '-887220', upper: '887220' },
+  { label: '±10%', lower: '-1000', upper: '1000' },
+  { label: '±50%', lower: '-5000', upper: '5000' },
+]
+
+function PresetButtons({ presets, onSelect }: { presets: Preset[]; onSelect: (v: string) => void }) {
+  return (
+    <div className="flex gap-1 mb-1 flex-wrap">
+      {presets.map((pr) => (
+        <button
+          key={pr.value}
+          type="button"
+          onClick={() => onSelect(pr.value)}
+          className="text-xs text-gray-500 hover:text-gray-200 border border-gray-700 hover:border-gray-500 rounded px-1.5 py-0.5 transition-colors"
+        >
+          {pr.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
+function TickRangePresets({ onSelect }: { onSelect: (lower: string, upper: string) => void }) {
+  return (
+    <div className="flex gap-1 mb-1 flex-wrap">
+      {TICK_RANGE_PRESETS.map((pr) => (
+        <button
+          key={pr.label}
+          type="button"
+          onClick={() => onSelect(pr.lower, pr.upper)}
+          className="text-xs text-gray-500 hover:text-gray-200 border border-gray-700 hover:border-gray-500 rounded px-1.5 py-0.5 transition-colors"
+        >
+          {pr.label}
+        </button>
+      ))}
+    </div>
+  )
+}
+
 interface Props {
   deployment: DeploymentResult
   onClose: () => void
@@ -647,11 +704,19 @@ export default function ContractActionPanel({ deployment, onClose, onActionSucce
                           }
                           if (c.type === 'uint256') {
                             const signed = /^int\d*$/.test(c.solType)
+                            const subPresets = PARAM_PRESETS[c.key]
                             return (
                               <div key={subKey}>
                                 <label className="block text-xs text-gray-400 mb-1">
                                   {c.label} <span className="text-gray-600">({c.solType})</span>
                                 </label>
+                                {subPresets && <PresetButtons presets={subPresets} onSelect={(v) => setValue(subKey, v)} />}
+                                {c.key === 'tickLower' && (
+                                  <TickRangePresets onSelect={(lower, upper) => {
+                                    setValue(subKey, lower)
+                                    setValue(`${p.key}.tickUpper`, upper)
+                                  }} />
+                                )}
                                 <input type="text" value={sv}
                                   onChange={(e) => {
                                     const v = signed
@@ -729,22 +794,27 @@ export default function ContractActionPanel({ deployment, onClose, onActionSucce
                 }
 
                 if (p.type === 'uint256') {
+                  const signed = /^int\d*$/.test(p.solType)
+                  const presets = PARAM_PRESETS[p.key]
                   return (
                     <div key={p.key}>
                       <label className="block text-xs text-gray-400 mb-1">
                         {p.label} <span className="text-gray-600">({p.solType})</span>
                       </label>
+                      {presets && <PresetButtons presets={presets} onSelect={(v) => setValue(p.key, v)} />}
+                      {p.key === 'tickLower' && (
+                        <TickRangePresets onSelect={(lower, upper) => { setValue('tickLower', lower); setValue('tickUpper', upper) }} />
+                      )}
                       <input
                         type="text"
                         value={val}
                         onChange={(e) => {
-                          const signed = /^int\d*$/.test(p.solType)
                           const v = signed
                             ? (e.target.value.match(/^-?\d*/) ?? [''])[0]
                             : e.target.value.replace(/\D/g, '')
                           setValue(p.key, v)
                         }}
-                        placeholder={/^int\d*$/.test(p.solType) ? '정수 (음수 가능)' : (PARAM_PLACEHOLDERS[p.key] ?? '숫자 입력')}
+                        placeholder={signed ? '정수 (음수 가능)' : (PARAM_PLACEHOLDERS[p.key] ?? '숫자 입력')}
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500"
                       />
                     </div>
