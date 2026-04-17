@@ -121,7 +121,10 @@ export interface ConfirmResponse {
 export type ActionParamType = 'text' | 'address' | 'uint256' | 'bool' | 'raw-hex' | 'array' | 'tuple' | 'disabled'
 
 export interface ActionParam {
+  /** index 기반 고유 키 — state key / React key 용도 (e.g. 'param_0') */
   key: string
+  /** 원본 ABI 파라미터 이름 — PARAM_DEFAULTS 매칭 등 이름 기반 로직 용도 */
+  name: string
   label: string
   /** 원본 Solidity 타입 — 인코딩 시 사용 */
   solType: string

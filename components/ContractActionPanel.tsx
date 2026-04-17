@@ -131,12 +131,12 @@ export default function ContractActionPanel({ deployment, onClose, onActionSucce
     for (const p of fn.params) {
       if (p.type === 'tuple' && p.components) {
         for (const c of p.components) {
-          if (c.key in PARAM_DEFAULTS) {
-            initial[`${p.key}.${c.key}`] = PARAM_DEFAULTS[c.key]
+          if (c.name in PARAM_DEFAULTS) {
+            initial[`${p.key}.${c.key}`] = PARAM_DEFAULTS[c.name]
           }
         }
-      } else if (p.key in PARAM_DEFAULTS) {
-        initial[p.key] = PARAM_DEFAULTS[p.key]
+      } else if (p.name in PARAM_DEFAULTS) {
+        initial[p.key] = PARAM_DEFAULTS[p.name]
       }
     }
     setFormValues(initial)
@@ -193,13 +193,13 @@ export default function ContractActionPanel({ deployment, onClose, onActionSucce
           if (c.type === 'disabled') return false
           if (c.type === 'bool') continue
           const sv = formValues[`${p.key}.${c.key}`] ?? ''
-          const effective = sv.trim() || (PARAM_DEFAULTS[c.key] ?? '')
+          const effective = sv.trim() || (PARAM_DEFAULTS[c.name] ?? '')
           if (!effective) return false
           if (c.type === 'address' && (effective.length !== 42 || !effective.startsWith('0x'))) return false
         }
         continue
       }
-      const effective = val.trim() || (PARAM_DEFAULTS[p.key] ?? '')
+      const effective = val.trim() || (PARAM_DEFAULTS[p.name] ?? '')
       if (!effective) return false
       if (p.type === 'address' && (val.length !== 42 || !val.startsWith('0x'))) return false
       if (p.type === 'uint256') {
@@ -218,12 +218,12 @@ export default function ContractActionPanel({ deployment, onClose, onActionSucce
       if (p.type === 'tuple' && p.components) {
         for (const c of p.components) {
           const key = `${p.key}.${c.key}`
-          if (!effectiveValues[key]?.trim() && c.key in PARAM_DEFAULTS) {
-            effectiveValues[key] = PARAM_DEFAULTS[c.key]
+          if (!effectiveValues[key]?.trim() && c.name in PARAM_DEFAULTS) {
+            effectiveValues[key] = PARAM_DEFAULTS[c.name]
           }
         }
-      } else if (!effectiveValues[p.key]?.trim() && p.key in PARAM_DEFAULTS) {
-        effectiveValues[p.key] = PARAM_DEFAULTS[p.key]
+      } else if (!effectiveValues[p.key]?.trim() && p.name in PARAM_DEFAULTS) {
+        effectiveValues[p.key] = PARAM_DEFAULTS[p.name]
       }
     }
     const result = await executeAction({
@@ -704,17 +704,18 @@ export default function ContractActionPanel({ deployment, onClose, onActionSucce
                           }
                           if (c.type === 'uint256') {
                             const signed = /^int\d*$/.test(c.solType)
-                            const subPresets = PARAM_PRESETS[c.key]
+                            const subPresets = PARAM_PRESETS[c.name]
                             return (
                               <div key={subKey}>
                                 <label className="block text-xs text-gray-400 mb-1">
                                   {c.label} <span className="text-gray-600">({c.solType})</span>
                                 </label>
                                 {subPresets && <PresetButtons presets={subPresets} onSelect={(v) => setValue(subKey, v)} />}
-                                {c.key === 'tickLower' && (
+                                {c.name === 'tickLower' && (
                                   <TickRangePresets onSelect={(lower, upper) => {
                                     setValue(subKey, lower)
-                                    setValue(`${p.key}.tickUpper`, upper)
+                                    const upperComp = comps.find((x) => x.name === 'tickUpper')
+                                    if (upperComp) setValue(`${p.key}.${upperComp.key}`, upper)
                                   }} />
                                 )}
                                 <input type="text" value={sv}
@@ -724,7 +725,7 @@ export default function ContractActionPanel({ deployment, onClose, onActionSucce
                                       : e.target.value.replace(/\D/g, '')
                                     setValue(subKey, v)
                                   }}
-                                  placeholder={signed ? '정수 (음수 가능)' : (PARAM_PLACEHOLDERS[c.key] ?? '숫자 입력')}
+                                  placeholder={signed ? '정수 (음수 가능)' : (PARAM_PLACEHOLDERS[c.name] ?? '숫자 입력')}
                                   className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-1.5 text-xs text-white placeholder-gray-600 focus:outline-none focus:border-blue-500" />
                               </div>
                             )
@@ -795,15 +796,19 @@ export default function ContractActionPanel({ deployment, onClose, onActionSucce
 
                 if (p.type === 'uint256') {
                   const signed = /^int\d*$/.test(p.solType)
-                  const presets = PARAM_PRESETS[p.key]
+                  const presets = PARAM_PRESETS[p.name]
                   return (
                     <div key={p.key}>
                       <label className="block text-xs text-gray-400 mb-1">
                         {p.label} <span className="text-gray-600">({p.solType})</span>
                       </label>
                       {presets && <PresetButtons presets={presets} onSelect={(v) => setValue(p.key, v)} />}
-                      {p.key === 'tickLower' && (
-                        <TickRangePresets onSelect={(lower, upper) => { setValue('tickLower', lower); setValue('tickUpper', upper) }} />
+                      {p.name === 'tickLower' && (
+                        <TickRangePresets onSelect={(lower, upper) => {
+                          setValue(p.key, lower)
+                          const upperParam = selectedFn!.params.find((x) => x.name === 'tickUpper')
+                          if (upperParam) setValue(upperParam.key, upper)
+                        }} />
                       )}
                       <input
                         type="text"
@@ -814,7 +819,7 @@ export default function ContractActionPanel({ deployment, onClose, onActionSucce
                             : e.target.value.replace(/\D/g, '')
                           setValue(p.key, v)
                         }}
-                        placeholder={signed ? '정수 (음수 가능)' : (PARAM_PLACEHOLDERS[p.key] ?? '숫자 입력')}
+                        placeholder={signed ? '정수 (음수 가능)' : (PARAM_PLACEHOLDERS[p.name] ?? '숫자 입력')}
                         className="w-full bg-gray-800 border border-gray-700 rounded-lg px-3 py-2 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-blue-500"
                       />
                     </div>

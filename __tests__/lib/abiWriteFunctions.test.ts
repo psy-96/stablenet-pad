@@ -60,31 +60,31 @@ describe('abiWriteFunctionsToActions', () => {
   it('classifies address type correctly', () => {
     const fns = abiWriteFunctionsToActions(SAMPLE_ABI)
     const mintFn = fns.find((f) => f.name === 'mint')!
-    expect(mintFn.params[0]).toMatchObject({ key: 'to', solType: 'address', type: 'address' })
+    expect(mintFn.params[0]).toMatchObject({ key: 'param_0', name: 'to', solType: 'address', type: 'address' })
   })
 
   it('classifies uint256 type correctly', () => {
     const fns = abiWriteFunctionsToActions(SAMPLE_ABI)
     const mintFn = fns.find((f) => f.name === 'mint')!
-    expect(mintFn.params[1]).toMatchObject({ key: 'amount', solType: 'uint256', type: 'uint256' })
+    expect(mintFn.params[1]).toMatchObject({ key: 'param_1', name: 'amount', solType: 'uint256', type: 'uint256' })
   })
 
   it('classifies bool type correctly', () => {
     const fns = abiWriteFunctionsToActions(SAMPLE_ABI)
     const setFlag = fns.find((f) => f.name === 'setFlag')!
-    expect(setFlag.params[0]).toMatchObject({ key: 'flag', solType: 'bool', type: 'bool' })
+    expect(setFlag.params[0]).toMatchObject({ key: 'param_0', name: 'flag', solType: 'bool', type: 'bool' })
   })
 
   it('classifies bytes32 as raw-hex', () => {
     const fns = abiWriteFunctionsToActions(SAMPLE_ABI)
     const setData = fns.find((f) => f.name === 'setData')!
-    expect(setData.params[0]).toMatchObject({ key: 'data', solType: 'bytes32', type: 'raw-hex' })
+    expect(setData.params[0]).toMatchObject({ key: 'param_0', name: 'data', solType: 'bytes32', type: 'raw-hex' })
   })
 
   it('classifies tuple as tuple', () => {
     const fns = abiWriteFunctionsToActions(SAMPLE_ABI)
     const setConfig = fns.find((f) => f.name === 'setConfig')!
-    expect(setConfig.params[0]).toMatchObject({ key: 'cfg', solType: 'tuple', type: 'tuple' })
+    expect(setConfig.params[0]).toMatchObject({ key: 'param_0', name: 'cfg', solType: 'tuple', type: 'tuple' })
   })
 
   it('sets stateMutability correctly', () => {
@@ -110,13 +110,13 @@ describe('abiWriteFunctionsToActions', () => {
   it('classifies address[] as array with arrayItemSolType=address', () => {
     const fns = abiWriteFunctionsToActions(SAMPLE_ABI)
     const swapFn = fns.find((f) => f.name === 'swap')!
-    expect(swapFn.params[0]).toMatchObject({ key: 'path', solType: 'address[]', type: 'array', arrayItemSolType: 'address' })
+    expect(swapFn.params[0]).toMatchObject({ key: 'param_0', name: 'path', solType: 'address[]', type: 'array', arrayItemSolType: 'address' })
   })
 
   it('classifies uint256[] as array with arrayItemSolType=uint256', () => {
     const fns = abiWriteFunctionsToActions(SAMPLE_ABI)
     const swapFn = fns.find((f) => f.name === 'swap')!
-    expect(swapFn.params[1]).toMatchObject({ key: 'amounts', solType: 'uint256[]', type: 'array', arrayItemSolType: 'uint256' })
+    expect(swapFn.params[1]).toMatchObject({ key: 'param_1', name: 'amounts', solType: 'uint256[]', type: 'array', arrayItemSolType: 'uint256' })
   })
 
   it('classifies tuple[] as disabled (complex array)', () => {

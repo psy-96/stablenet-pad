@@ -19,16 +19,17 @@ function arrayItemType(solType: string): string {
   return solType.replace(/\[\d*\]$/, '')
 }
 
-function inputToActionParam(input: AbiInputField): ActionParam {
+function inputToActionParam(input: AbiInputField, idx: number): ActionParam {
   const paramType = classifyAbiType(input.type)
   return {
-    key: input.name,
-    label: input.name,
+    key: `param_${idx}`,
+    name: input.name || '',
+    label: input.name || `[${idx}]`,
     solType: input.type,
     type: paramType,
     ...(paramType === 'array' ? { arrayItemSolType: arrayItemType(input.type) } : {}),
     ...(paramType === 'tuple' && input.components
-      ? { components: input.components.map(inputToActionParam) }
+      ? { components: input.components.map((c, ci) => inputToActionParam(c, ci)) }
       : {}),
   }
 }
@@ -45,7 +46,7 @@ export function abiReadFunctionsToActions(abi: AbiItem[]): ReadFunctionDef[] {
     const mut = item.stateMutability
     if (mut !== 'view' && mut !== 'pure') continue
 
-    const params: ActionParam[] = (item.inputs ?? []).map(inputToActionParam)
+    const params: ActionParam[] = (item.inputs ?? []).map((inp, idx) => inputToActionParam(inp, idx))
 
     const paramSig = (item.inputs ?? []).map((i) => i.type).join(',')
     result.push({
