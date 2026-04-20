@@ -165,6 +165,13 @@ export function useDeploy(): UseDeployResult {
         let finalTxHash: Hash
         let implAddress: string | null = null
 
+        // 안전망: Upgradeable 컨트랙트를 Proxy OFF로 배포하면 initialize() 미호출 → 무용 컨트랙트
+        if (!useProxy && hasInitializeFunction(abi)) {
+          throw new Error(
+            '이 컨트랙트는 Upgradeable 패턴(initialize 함수 포함)입니다. Proxy ON으로 배포해야 합니다.'
+          )
+        }
+
         if (useProxy) {
           // ── 2-tx Proxy 배포 ───────────────────────────────────────────
           // Tx 1: Implementation 배포
@@ -339,6 +346,13 @@ export function buildConstructorArgs(abi: Abi, params: ContractParams): unknown[
     if (t === 'string' || t === 'address') return val
     throw new Error(`지원하지 않는 constructor 타입: ${t}`)
   })
+}
+
+/** ABI에 initialize() 함수가 존재하는지 확인 — Upgradeable 패턴 감지용 */
+export function hasInitializeFunction(abi: Abi): boolean {
+  return abi.some(
+    (item) => item.type === 'function' && 'name' in item && item.name === 'initialize'
+  )
 }
 
 // ABI input.type 기반 동적 인코딩 — contractType switch 없음

@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import type { Abi } from 'viem'
 import type { ContractParams } from '@/types'
-import { buildConstructorArgs } from '@/hooks/useDeploy'
+import { buildConstructorArgs, hasInitializeFunction } from '@/hooks/useDeploy'
 
 // ── 픽스처 ─────────────────────────────────────────────────────────────────
 
@@ -190,5 +190,32 @@ describe('buildConstructorArgs — 타입 변환', () => {
     expect(() => buildConstructorArgs(badAbi, { data: '0xdeadbeef' })).toThrow(
       '지원하지 않는 constructor 타입'
     )
+  })
+})
+
+// ── hasInitializeFunction — Upgradeable 패턴 감지 (ISSUE-12) ───────────────
+
+describe('hasInitializeFunction — Upgradeable 패턴 감지', () => {
+  it('initialize() 존재 시 true 반환한다', () => {
+    expect(hasInitializeFunction(upgradeableAbi)).toBe(true)
+  })
+
+  it('initialize() 없는 ABI는 false 반환한다', () => {
+    expect(hasInitializeFunction(singleContractAbi)).toBe(false)
+  })
+
+  it('빈 ABI는 false 반환한다', () => {
+    expect(hasInitializeFunction([])).toBe(false)
+  })
+
+  it('initialize 이름의 event는 false 반환한다 (function만 감지)', () => {
+    const eventAbi: Abi = [
+      {
+        type: 'event',
+        name: 'initialize',
+        inputs: [],
+      } as unknown as Abi[number],
+    ]
+    expect(hasInitializeFunction(eventAbi)).toBe(false)
   })
 })

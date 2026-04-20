@@ -49,6 +49,8 @@ export default function DeployPanel({ onDeploy, isDeploying, deployerAddress, on
     setTemplateParamsValid(false)
     setTemplateContractName('')
     setExistingDeployment(null)
+    const tmpl = TEMPLATE_REGISTRY.find((t) => t.id === id)
+    if (tmpl) setTemplateUseProxy(tmpl.useProxy)
   }
 
   function handleTemplateParamsChange(p: ContractParams | null, v: boolean) {
@@ -153,18 +155,12 @@ export default function DeployPanel({ onDeploy, isDeploying, deployerAddress, on
             )}
           </div>
 
-          <label className="flex items-center gap-3 cursor-pointer">
-            <div
-              onClick={() => setTemplateUseProxy(!templateUseProxy)}
-              className={`relative w-10 h-5 rounded-full transition-colors ${templateUseProxy ? 'bg-blue-600' : 'bg-gray-700'}`}
-            >
-              <div className={`absolute top-0.5 w-4 h-4 rounded-full bg-white transition-transform ${templateUseProxy ? 'translate-x-5' : 'translate-x-0.5'}`} />
-            </div>
-            <span className="text-sm text-gray-300">
-              Proxy 패턴 {templateUseProxy ? 'ON' : 'OFF'}
-              <span className="text-gray-500 ml-1">({templateUseProxy ? '2 트랜잭션' : '1 트랜잭션'})</span>
-            </span>
-          </label>
+          {/* 템플릿 모드: Proxy 설정은 템플릿 메타데이터로 고정 — 토글 비노출 */}
+          <div className="flex items-center gap-2 text-sm text-gray-500">
+            <span className={`inline-block w-2 h-2 rounded-full ${templateUseProxy ? 'bg-blue-500' : 'bg-gray-600'}`} />
+            Proxy 패턴 {templateUseProxy ? 'ON' : 'OFF'}
+            <span className="text-gray-600">({templateUseProxy ? '2 트랜잭션' : '1 트랜잭션'} · 템플릿 고정)</span>
+          </div>
 
           {/* 재배포 감지 배너 */}
           {existingDeployment && (
