@@ -1,4 +1,5 @@
 import type { DeploymentResult } from '@/types'
+import { ENV_CONTRACT_IDS } from '@/lib/env-contract-ids'
 
 export const V3_FACTORY_ADDRESS =
   process.env.NEXT_PUBLIC_V3_FACTORY_ADDRESS ?? '0xa0f51De7c6267fd10b168d941CB06093E76785D7'
@@ -121,7 +122,7 @@ export const V3_POOL_ABI = [
 ] as const
 
 export const V3_FACTORY_DEPLOYMENT: DeploymentResult = {
-  id: 'v3-factory',
+  id: ENV_CONTRACT_IDS.V3_FACTORY,
   contractName: 'UniswapV3Factory',
   type: 'UniswapV3Factory',
   proxyAddress: null,
@@ -140,7 +141,7 @@ export const V3_FACTORY_DEPLOYMENT: DeploymentResult = {
 }
 
 export const V3_POSITION_MANAGER_DEPLOYMENT: DeploymentResult = {
-  id: 'v3-position-manager',
+  id: ENV_CONTRACT_IDS.V3_POSITION_MANAGER,
   contractName: 'NonfungiblePositionManager',
   type: 'NonfungiblePositionManager',
   proxyAddress: null,
@@ -159,7 +160,7 @@ export const V3_POSITION_MANAGER_DEPLOYMENT: DeploymentResult = {
 }
 
 export const V3_SWAP_ROUTER_DEPLOYMENT: DeploymentResult = {
-  id: 'v3-swap-router',
+  id: ENV_CONTRACT_IDS.V3_SWAP_ROUTER,
   contractName: 'SwapRouter',
   type: 'SwapRouter',
   proxyAddress: null,

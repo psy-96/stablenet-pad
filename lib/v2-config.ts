@@ -1,4 +1,5 @@
 import type { DeploymentResult } from '@/types'
+import { ENV_CONTRACT_IDS } from '@/lib/env-contract-ids'
 
 export const V2_FACTORY_ADDRESS =
   process.env.NEXT_PUBLIC_V2_FACTORY_ADDRESS ?? '0xec1c0fb2ceaa7349b381e5bdd574f6369b4129ce'
@@ -41,7 +42,7 @@ export const ROUTER_ABI = [
 ] as const
 
 export const FACTORY_DEPLOYMENT: DeploymentResult = {
-  id: 'v2-factory',
+  id: ENV_CONTRACT_IDS.V2_FACTORY,
   contractName: 'UniswapV2Factory',
   type: 'UniswapV2Factory',
   proxyAddress: null,
@@ -60,7 +61,7 @@ export const FACTORY_DEPLOYMENT: DeploymentResult = {
 }
 
 export const ROUTER_DEPLOYMENT: DeploymentResult = {
-  id: 'v2-router',
+  id: ENV_CONTRACT_IDS.V2_ROUTER,
   contractName: 'UniswapV2Router02',
   type: 'UniswapV2Router02',
   proxyAddress: null,
