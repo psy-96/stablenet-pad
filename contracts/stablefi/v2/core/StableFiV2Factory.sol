@@ -2,14 +2,14 @@
 pragma solidity ^0.8.20;
 
 // ============================================================
-// Uniswap V2 Core — Flattened & ported to Solidity 0.8.20
+// StableFi V2 Core — Flattened & ported to Solidity 0.8.20
 // Factory + Pair + ERC20 in single file
 // constructor(address _feeToSetter)
 // ============================================================
 
 // --- Interfaces ---
 
-interface IUniswapV2Factory {
+interface IStableFiV2Factory {
     event PairCreated(address indexed token0, address indexed token1, address pair, uint256);
 
     function feeTo() external view returns (address);
@@ -22,7 +22,7 @@ interface IUniswapV2Factory {
     function setFeeToSetter(address) external;
 }
 
-interface IUniswapV2Pair {
+interface IStableFiV2Pair {
     event Approval(address indexed owner, address indexed spender, uint256 value);
     event Transfer(address indexed from, address indexed to, uint256 value);
     event Mint(address indexed sender, uint256 amount0, uint256 amount1);
@@ -53,7 +53,7 @@ interface IUniswapV2Pair {
     function initialize(address, address) external;
 }
 
-interface IUniswapV2Callee {
+interface IStableFiV2Callee {
     function uniswapV2Call(address sender, uint256 amount0, uint256 amount1, bytes calldata data) external;
 }
 
@@ -105,11 +105,11 @@ library UQ112x112 {
     }
 }
 
-// --- UniswapV2ERC20 ---
+// --- StableFiV2ERC20 ---
 
-contract UniswapV2ERC20 {
-    string public constant name = "Uniswap V2";
-    string public constant symbol = "UNI-V2";
+contract StableFiV2ERC20 {
+    string public constant name = "StableFi V2";
+    string public constant symbol = "SF-V2";
     uint8 public constant decimals = 18;
     uint256 public totalSupply;
     mapping(address => uint256) public balanceOf;
@@ -189,7 +189,7 @@ contract UniswapV2ERC20 {
         bytes32 r,
         bytes32 s
     ) external {
-        require(deadline >= block.timestamp, "UniswapV2: EXPIRED");
+        require(deadline >= block.timestamp, "StableFiV2: EXPIRED");
         bytes32 digest = keccak256(
             abi.encodePacked(
                 "\x19\x01",
@@ -198,14 +198,14 @@ contract UniswapV2ERC20 {
             )
         );
         address recoveredAddress = ecrecover(digest, v, r, s);
-        require(recoveredAddress != address(0) && recoveredAddress == owner, "UniswapV2: INVALID_SIGNATURE");
+        require(recoveredAddress != address(0) && recoveredAddress == owner, "StableFiV2: INVALID_SIGNATURE");
         _approve(owner, spender, value);
     }
 }
 
-// --- UniswapV2Pair ---
+// --- StableFiV2Pair ---
 
-contract UniswapV2Pair is UniswapV2ERC20 {
+contract StableFiV2Pair is StableFiV2ERC20 {
     using UQ112x112 for uint224;
 
     uint256 public constant MINIMUM_LIQUIDITY = 10**3;
@@ -242,7 +242,7 @@ contract UniswapV2Pair is UniswapV2ERC20 {
     event Sync(uint112 reserve0, uint112 reserve1);
 
     modifier lock() {
-        require(unlocked == 1, "UniswapV2: LOCKED");
+        require(unlocked == 1, "StableFiV2: LOCKED");
         unlocked = 0;
         _;
         unlocked = 1;
@@ -256,18 +256,18 @@ contract UniswapV2Pair is UniswapV2ERC20 {
 
     function _safeTransfer(address token, address to, uint256 value) private {
         (bool success, bytes memory data) = token.call(abi.encodeWithSelector(SELECTOR, to, value));
-        require(success && (data.length == 0 || abi.decode(data, (bool))), "UniswapV2: TRANSFER_FAILED");
+        require(success && (data.length == 0 || abi.decode(data, (bool))), "StableFiV2: TRANSFER_FAILED");
     }
 
     // called once by the factory at time of deployment
     function initialize(address _token0, address _token1) external {
-        require(msg.sender == factory, "UniswapV2: FORBIDDEN");
+        require(msg.sender == factory, "StableFiV2: FORBIDDEN");
         token0 = _token0;
         token1 = _token1;
     }
 
     function _update(uint256 balance0, uint256 balance1, uint112 _reserve0, uint112 _reserve1) private {
-        require(balance0 <= type(uint112).max && balance1 <= type(uint112).max, "UniswapV2: OVERFLOW");
+        require(balance0 <= type(uint112).max && balance1 <= type(uint112).max, "StableFiV2: OVERFLOW");
         uint32 blockTimestamp = uint32(block.timestamp % 2**32);
         unchecked {
             uint32 timeElapsed = blockTimestamp - blockTimestampLast;
@@ -283,7 +283,7 @@ contract UniswapV2Pair is UniswapV2ERC20 {
     }
 
     function _mintFee(uint112 _reserve0, uint112 _reserve1) private returns (bool feeOn) {
-        address feeTo = IUniswapV2Factory(factory).feeTo();
+        address feeTo = IStableFiV2Factory(factory).feeTo();
         feeOn = feeTo != address(0);
         uint256 _kLast = kLast;
         if (feeOn) {
@@ -317,7 +317,7 @@ contract UniswapV2Pair is UniswapV2ERC20 {
         } else {
             liquidity = Math.min((amount0 * _totalSupply) / _reserve0, (amount1 * _totalSupply) / _reserve1);
         }
-        require(liquidity > 0, "UniswapV2: INSUFFICIENT_LIQUIDITY_MINTED");
+        require(liquidity > 0, "StableFiV2: INSUFFICIENT_LIQUIDITY_MINTED");
         _mint(to, liquidity);
 
         _update(balance0, balance1, _reserve0, _reserve1);
@@ -337,7 +337,7 @@ contract UniswapV2Pair is UniswapV2ERC20 {
         uint256 _totalSupply = totalSupply;
         amount0 = (liquidity * balance0) / _totalSupply;
         amount1 = (liquidity * balance1) / _totalSupply;
-        require(amount0 > 0 && amount1 > 0, "UniswapV2: INSUFFICIENT_LIQUIDITY_BURNED");
+        require(amount0 > 0 && amount1 > 0, "StableFiV2: INSUFFICIENT_LIQUIDITY_BURNED");
         _burn(address(this), liquidity);
         _safeTransfer(_token0, to, amount0);
         _safeTransfer(_token1, to, amount1);
@@ -350,31 +350,31 @@ contract UniswapV2Pair is UniswapV2ERC20 {
     }
 
     function swap(uint256 amount0Out, uint256 amount1Out, address to, bytes calldata data) external lock {
-        require(amount0Out > 0 || amount1Out > 0, "UniswapV2: INSUFFICIENT_OUTPUT_AMOUNT");
+        require(amount0Out > 0 || amount1Out > 0, "StableFiV2: INSUFFICIENT_OUTPUT_AMOUNT");
         (uint112 _reserve0, uint112 _reserve1, ) = getReserves();
-        require(amount0Out < _reserve0 && amount1Out < _reserve1, "UniswapV2: INSUFFICIENT_LIQUIDITY");
+        require(amount0Out < _reserve0 && amount1Out < _reserve1, "StableFiV2: INSUFFICIENT_LIQUIDITY");
 
         uint256 balance0;
         uint256 balance1;
         {
             address _token0 = token0;
             address _token1 = token1;
-            require(to != _token0 && to != _token1, "UniswapV2: INVALID_TO");
+            require(to != _token0 && to != _token1, "StableFiV2: INVALID_TO");
             if (amount0Out > 0) _safeTransfer(_token0, to, amount0Out);
             if (amount1Out > 0) _safeTransfer(_token1, to, amount1Out);
-            if (data.length > 0) IUniswapV2Callee(to).uniswapV2Call(msg.sender, amount0Out, amount1Out, data);
+            if (data.length > 0) IStableFiV2Callee(to).uniswapV2Call(msg.sender, amount0Out, amount1Out, data);
             balance0 = IERC20(_token0).balanceOf(address(this));
             balance1 = IERC20(_token1).balanceOf(address(this));
         }
         uint256 amount0In = balance0 > _reserve0 - amount0Out ? balance0 - (_reserve0 - amount0Out) : 0;
         uint256 amount1In = balance1 > _reserve1 - amount1Out ? balance1 - (_reserve1 - amount1Out) : 0;
-        require(amount0In > 0 || amount1In > 0, "UniswapV2: INSUFFICIENT_INPUT_AMOUNT");
+        require(amount0In > 0 || amount1In > 0, "StableFiV2: INSUFFICIENT_INPUT_AMOUNT");
         {
             uint256 balance0Adjusted = balance0 * 1000 - amount0In * 3;
             uint256 balance1Adjusted = balance1 * 1000 - amount1In * 3;
             require(
                 balance0Adjusted * balance1Adjusted >= uint256(_reserve0) * _reserve1 * (1000**2),
-                "UniswapV2: K"
+                "StableFiV2: K"
             );
         }
 
@@ -394,9 +394,9 @@ contract UniswapV2Pair is UniswapV2ERC20 {
     }
 }
 
-// --- UniswapV2Factory ---
+// --- StableFiV2Factory ---
 
-contract UniswapV2Factory is IUniswapV2Factory {
+contract StableFiV2Factory is IStableFiV2Factory {
     address public feeTo;
     address public feeToSetter;
 
@@ -412,19 +412,19 @@ contract UniswapV2Factory is IUniswapV2Factory {
     }
 
     function createPair(address tokenA, address tokenB) external returns (address pair) {
-        require(tokenA != tokenB, "UniswapV2: IDENTICAL_ADDRESSES");
+        require(tokenA != tokenB, "StableFiV2: IDENTICAL_ADDRESSES");
         (address token0, address token1) = tokenA < tokenB ? (tokenA, tokenB) : (tokenB, tokenA);
-        require(token0 != address(0), "UniswapV2: ZERO_ADDRESS");
-        require(getPair[token0][token1] == address(0), "UniswapV2: PAIR_EXISTS");
+        require(token0 != address(0), "StableFiV2: ZERO_ADDRESS");
+        require(getPair[token0][token1] == address(0), "StableFiV2: PAIR_EXISTS");
 
-        bytes memory bytecode = type(UniswapV2Pair).creationCode;
+        bytes memory bytecode = type(StableFiV2Pair).creationCode;
         bytes32 salt = keccak256(abi.encodePacked(token0, token1));
         assembly {
             pair := create2(0, add(bytecode, 32), mload(bytecode), salt)
         }
-        require(pair != address(0), "UniswapV2: PAIR_CREATION_FAILED");
+        require(pair != address(0), "StableFiV2: PAIR_CREATION_FAILED");
 
-        IUniswapV2Pair(pair).initialize(token0, token1);
+        IStableFiV2Pair(pair).initialize(token0, token1);
         getPair[token0][token1] = pair;
         getPair[token1][token0] = pair;
         allPairs.push(pair);
@@ -432,16 +432,16 @@ contract UniswapV2Factory is IUniswapV2Factory {
     }
 
     function setFeeTo(address _feeTo) external {
-        require(msg.sender == feeToSetter, "UniswapV2: FORBIDDEN");
+        require(msg.sender == feeToSetter, "StableFiV2: FORBIDDEN");
         feeTo = _feeTo;
     }
 
     function setFeeToSetter(address _feeToSetter) external {
-        require(msg.sender == feeToSetter, "UniswapV2: FORBIDDEN");
+        require(msg.sender == feeToSetter, "StableFiV2: FORBIDDEN");
         feeToSetter = _feeToSetter;
     }
 
     function INIT_CODE_PAIR_HASH() external pure returns (bytes32) {
-        return keccak256(type(UniswapV2Pair).creationCode);
+        return keccak256(type(StableFiV2Pair).creationCode);
     }
 }

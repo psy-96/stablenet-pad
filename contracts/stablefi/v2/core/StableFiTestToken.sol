@@ -1,7 +1,7 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.20;
 
-contract TestToken {
+contract StableFiTestToken {
     string public name;
     string public symbol;
     uint8 public constant decimals = 18;
