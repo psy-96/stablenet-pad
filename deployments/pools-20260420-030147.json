@@ -1,0 +1,29 @@
+{
+  "network": "stablenet-testnet",
+  "chainId": 8283,
+  "deployer": "0x069331CB8ADC2E376f0A2F8a6CDDee4f021e07cD",
+  "timestamp": "2026-04-20T03:01:47.319Z",
+  "partial": true,
+  "tokens": {
+    "TokenA": {
+      "address": "0x9468b997A0C19Cf73B0C5ad230f2272ac7c3361C",
+      "symbol": "TKA",
+      "decimals": 18
+    },
+    "TokenB": {
+      "address": "0x14394Dbf12d3221CE8Da414de90DDF98360ac035",
+      "symbol": "TKB",
+      "decimals": 18
+    }
+  },
+  "txHashes": [
+    {
+      "step": "TokenA deploy",
+      "hash": "0x3a4219a49ebd8ac57d4d278c025dc456faf99bfcd1541c40c100dfab8a3930b4"
+    },
+    {
+      "step": "TokenB deploy",
+      "hash": "0x192f338167446d30a02ee69646c33a50ac13cf221720d19b9be02c7919408e43"
+    }
+  ]
+}

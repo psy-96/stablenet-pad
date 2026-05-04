@@ -1,0 +1,8 @@
+{
+  "network": "stablenet-testnet",
+  "chainId": 8283,
+  "deployer": "0x069331CB8ADC2E376f0A2F8a6CDDee4f021e07cD",
+  "timestamp": "2026-04-20T04:57:44.189Z",
+  "partial": true,
+  "txHashes": []
+}
