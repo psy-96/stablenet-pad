@@ -4,21 +4,24 @@ import * as fs from 'fs'
 import * as path from 'path'
 
 // ── 경로 상수 ─────────────────────────────────────────────────────────────────
-const NM = path.join(__dirname, '..', 'node_modules')
+// 루트 프로젝트의 로컬 컴파일 아티팩트를 사용한다.
+// 이 파일 위치: scripts/v3-deploy/scripts/deploy-v3.ts
+// 루트 위치:    ../../.. (= stablenet-pad/)
+const ARTIFACTS_ROOT = path.join(__dirname, '..', '..', '..', 'artifacts', 'contracts', 'stablefi', 'v3')
 
-// 사전 컴파일 아티팩트 경로 (npm 패키지에 포함된 ABI + bytecode)
+// 로컬 컴파일 아티팩트 경로 (npx hardhat compile 결과물)
 const ARTIFACT_PATHS = {
-  UniswapV3Factory:
-    '@uniswap/v3-core/artifacts/contracts/UniswapV3Factory.sol/UniswapV3Factory.json',
+  StableFiV3Factory:
+    'core/StableFiV3Factory.sol/StableFiV3Factory.json',
   NFTDescriptor:
-    '@uniswap/v3-periphery/artifacts/contracts/libraries/NFTDescriptor.sol/NFTDescriptor.json',
-  NonfungibleTokenPositionDescriptor:
-    '@uniswap/v3-periphery/artifacts/contracts/NonfungibleTokenPositionDescriptor.sol/NonfungibleTokenPositionDescriptor.json',
-  NonfungiblePositionManager:
-    '@uniswap/v3-periphery/artifacts/contracts/NonfungiblePositionManager.sol/NonfungiblePositionManager.json',
-  SwapRouter:
-    '@uniswap/v3-periphery/artifacts/contracts/SwapRouter.sol/SwapRouter.json',
-}
+    'periphery/libraries/NFTDescriptor.sol/NFTDescriptor.json',
+  StableFiNonfungibleTokenPositionDescriptor:
+    'periphery/StableFiNonfungibleTokenPositionDescriptor.sol/StableFiNonfungibleTokenPositionDescriptor.json',
+  StableFiNonfungiblePositionManager:
+    'periphery/StableFiNonfungiblePositionManager.sol/StableFiNonfungiblePositionManager.json',
+  StableFiV3SwapRouter:
+    'periphery/StableFiV3SwapRouter.sol/StableFiV3SwapRouter.json',
+} as const
 
 type ArtifactName = keyof typeof ARTIFACT_PATHS
 
@@ -30,15 +33,18 @@ interface Artifact {
 
 // ── 아티팩트 로드 ─────────────────────────────────────────────────────────────
 function loadArtifact(name: ArtifactName): Artifact {
-  const fullPath = path.join(NM, ARTIFACT_PATHS[name])
+  const fullPath = path.join(ARTIFACTS_ROOT, ARTIFACT_PATHS[name])
   if (!fs.existsSync(fullPath)) {
-    throw new Error(`아티팩트 파일 없음: ${fullPath}`)
+    throw new Error(
+      `[에러] 로컬 아티팩트 파일 없음: ${fullPath}\n` +
+      `  → 루트 프로젝트에서 먼저 컴파일하세요: npx hardhat compile`
+    )
   }
   return JSON.parse(fs.readFileSync(fullPath, 'utf-8')) as Artifact
 }
 
 // ── 라이브러리 링킹 ───────────────────────────────────────────────────────────
-// NonfungibleTokenPositionDescriptor 바이트코드의 __$hash$__ 플레이스홀더를
+// StableFiNonfungibleTokenPositionDescriptor 바이트코드의 __$hash$__ 플레이스홀더를
 // 실제 NFTDescriptor 라이브러리 주소로 교체한다.
 function linkBytecode(
   artifact: Artifact,
@@ -133,42 +139,43 @@ async function main() {
   const network = await ethers.provider.getNetwork()
 
   console.log('═'.repeat(52))
-  console.log('  Uniswap V3 — StableNet Testnet 배포')
+  console.log('  StableFi V3 — StableNet Testnet 배포')
   console.log('═'.repeat(52))
   console.log(`  배포자  : ${deployerAddress}`)
   console.log(`  네트워크: (chainId: ${network.chainId})`)
   console.log(`  WKRC    : ${WKRC_ADDRESS}`)
+  console.log(`  아티팩트: ${ARTIFACTS_ROOT}`)
 
   // ── 아티팩트 존재 확인 ──────────────────────────────────────────────────────
-  console.log('\n[사전 확인] 아티팩트 파일 확인 중...')
+  console.log('\n[사전 확인] 로컬 아티팩트 파일 확인 중...')
   for (const name of Object.keys(ARTIFACT_PATHS) as ArtifactName[]) {
-    loadArtifact(name) // 파일 없으면 여기서 throw
+    loadArtifact(name) // 파일 없으면 여기서 throw (에러 메시지에 컴파일 안내 포함)
     console.log(`  ✓ ${name}`)
   }
 
-  // ── ① UniswapV3Factory ──────────────────────────────────────────────────────
-  const { address: factoryAddress } = await deployContract('UniswapV3Factory', [])
+  // ── ① StableFiV3Factory ─────────────────────────────────────────────────────
+  const { address: factoryAddress } = await deployContract('StableFiV3Factory', [])
 
   // ── ② NFTDescriptor 라이브러리 ─────────────────────────────────────────────
   const { address: nftDescriptorAddress } = await deployContract('NFTDescriptor', [])
 
-  // ── ③ NonfungibleTokenPositionDescriptor ───────────────────────────────────
+  // ── ③ StableFiNonfungibleTokenPositionDescriptor ────────────────────────────
   const nativeCurrencyLabel = ethers.encodeBytes32String('KRC')
   const { address: descriptorAddress } = await deployContract(
-    'NonfungibleTokenPositionDescriptor',
+    'StableFiNonfungibleTokenPositionDescriptor',
     [WKRC_ADDRESS, nativeCurrencyLabel],
     { libraries: { NFTDescriptor: nftDescriptorAddress } }
   )
 
-  // ── ④ NonfungiblePositionManager ───────────────────────────────────────────
+  // ── ④ StableFiNonfungiblePositionManager ───────────────────────────────────
   const { address: positionManagerAddress } = await deployContract(
-    'NonfungiblePositionManager',
+    'StableFiNonfungiblePositionManager',
     [factoryAddress, WKRC_ADDRESS, descriptorAddress]
   )
 
-  // ── ⑤ SwapRouter ───────────────────────────────────────────────────────────
+  // ── ⑤ StableFiV3SwapRouter ─────────────────────────────────────────────────
   const { address: swapRouterAddress } = await deployContract(
-    'SwapRouter',
+    'StableFiV3SwapRouter',
     [factoryAddress, WKRC_ADDRESS]
   )
 
@@ -194,9 +201,9 @@ async function main() {
   fs.mkdirSync(abisDir, { recursive: true })
 
   const abiTargets: { name: ArtifactName; file: string }[] = [
-    { name: 'UniswapV3Factory', file: 'abi_v3factory.json' },
-    { name: 'NonfungiblePositionManager', file: 'abi_positionmanager.json' },
-    { name: 'SwapRouter', file: 'abi_swaprouter.json' },
+    { name: 'StableFiV3Factory', file: 'abi_v3factory.json' },
+    { name: 'StableFiNonfungiblePositionManager', file: 'abi_positionmanager.json' },
+    { name: 'StableFiV3SwapRouter', file: 'abi_swaprouter.json' },
   ]
 
   for (const { name, file } of abiTargets) {
@@ -207,7 +214,7 @@ async function main() {
 
   // ── 요약 ─────────────────────────────────────────────────────────────────────
   console.log('\n' + '═'.repeat(52))
-  console.log('  ✓ V3 배포 완료')
+  console.log('  ✓ StableFi V3 배포 완료')
   console.log('═'.repeat(52))
   console.log(JSON.stringify(result, null, 2))
 }
