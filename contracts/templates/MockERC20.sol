@@ -41,6 +41,7 @@ contract MockERC20 {
 
     function transferFrom(address from, address to, uint256 value) external returns (bool) {
         require(allowance[from][msg.sender] >= value, 'INSUFFICIENT_ALLOWANCE');
+        require(balanceOf[from] >= value, 'INSUFFICIENT_BALANCE');
         allowance[from][msg.sender] -= value;
         balanceOf[from] -= value;
         balanceOf[to] += value;

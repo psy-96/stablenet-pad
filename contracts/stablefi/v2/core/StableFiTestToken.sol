@@ -41,6 +41,7 @@ contract StableFiTestToken {
     }
 
     function _transfer(address from, address to, uint256 value) internal returns (bool) {
+        require(to != address(0), "StableFiV2: ZERO_ADDRESS");
         require(balanceOf[from] >= value, "ERC20: insufficient balance");
         balanceOf[from] -= value;
         balanceOf[to] += value;
