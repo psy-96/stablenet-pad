@@ -18,6 +18,8 @@ const __dirname = dirname(__filename)
 const { ethers, network } = hre
 
 const WKRC = '0x0000000000000000000000000000000000001000'
+// keccak256(StableFiV2Pair.creationCode) — Router02 pairFor()와 반드시 일치해야 함
+const INIT_CODE_HASH = '0x4c537bbb9708caa7dc2fa3085ee5980b7db976c8254aed5a105597c870064995'
 
 async function main() {
   const [deployer] = await ethers.getSigners()
