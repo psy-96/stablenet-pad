@@ -6,7 +6,7 @@ dotenv.config();
 const RPC_URL    = process.env.RPC_URL    || 'https://rpc.stablenet.network/archive';
 const PRIVATE_KEY = process.env.PRIVATE_KEY;
 
-const SWAP_ROUTER = '0x677bb52fE5dD397920D7014779542c8e9e74D4D6';
+const SWAP_ROUTER = '0x8920e24184Ae7a1D55d64ef42f319139E9A72885';
 const FEE = 500;
 
 const TOKEN = {

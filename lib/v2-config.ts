@@ -2,9 +2,9 @@ import type { DeploymentResult } from '@/types'
 import { ENV_CONTRACT_IDS } from '@/lib/env-contract-ids'
 
 export const V2_FACTORY_ADDRESS =
-  process.env.NEXT_PUBLIC_V2_FACTORY_ADDRESS ?? '0xec1c0fb2ceaa7349b381e5bdd574f6369b4129ce'
+  process.env.NEXT_PUBLIC_V2_FACTORY_ADDRESS ?? '0xEf0C7E20fc70aCfB32C5D45C7c07FC82Ac00f2C8'
 export const V2_ROUTER_ADDRESS =
-  process.env.NEXT_PUBLIC_V2_ROUTER_ADDRESS ?? '0xe56c3f0375ec5644509715c42aa8764d4c857d01'
+  process.env.NEXT_PUBLIC_V2_ROUTER_ADDRESS ?? '0xef861C89033aD6E0159A1C73aA9c6EA694Cb7561'
 
 export const FACTORY_ABI = [
   { inputs: [{ internalType: 'address', name: '_feeToSetter', type: 'address' }], stateMutability: 'nonpayable', type: 'constructor' },

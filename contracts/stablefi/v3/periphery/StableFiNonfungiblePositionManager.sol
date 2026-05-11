@@ -19,7 +19,7 @@ import './base/SelfPermit.sol';
 import './base/PoolInitializer.sol';
 
 /// @title NFT positions
-/// @notice Wraps Uniswap V3 positions in the ERC721 non-fungible token interface
+/// @notice Wraps StableFi V3 positions in the ERC721 non-fungible token interface
 contract StableFiNonfungiblePositionManager is
     INonfungiblePositionManager,
     Multicall,

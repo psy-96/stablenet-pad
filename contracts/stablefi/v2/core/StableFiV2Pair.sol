@@ -13,7 +13,7 @@ interface IERC20 {
 }
 
 interface IStableFiV2Callee {
-    function uniswapV2Call(address sender, uint amount0, uint amount1, bytes calldata data) external;
+    function stablefiV2Call(address sender, uint amount0, uint amount1, bytes calldata data) external;
 }
 
 interface IStableFiV2Factory {
@@ -279,7 +279,7 @@ contract StableFiV2Pair is StableFiV2ERC20 {
             require(to != _token0 && to != _token1, 'StableFiV2: INVALID_TO');
             if (amount0Out > 0) _safeTransfer(_token0, to, amount0Out);
             if (amount1Out > 0) _safeTransfer(_token1, to, amount1Out);
-            if (data.length > 0) IStableFiV2Callee(to).uniswapV2Call(msg.sender, amount0Out, amount1Out, data);
+            if (data.length > 0) IStableFiV2Callee(to).stablefiV2Call(msg.sender, amount0Out, amount1Out, data);
             balance0 = IERC20(_token0).balanceOf(address(this));
             balance1 = IERC20(_token1).balanceOf(address(this));
         }
