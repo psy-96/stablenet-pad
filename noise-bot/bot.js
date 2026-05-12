@@ -72,7 +72,10 @@ const ROUTER_ABI = [
 
 // ─── Helpers ─────────────────────────────────────────────────────
 const sleep  = ms => new Promise(r => setTimeout(r, ms));
-const nowStr = ()  => new Date().toISOString().replace('T', ' ').substring(0, 16);
+const nowStr = () => {
+  const kst = new Date(Date.now() + 9 * 60 * 60 * 1000);
+  return kst.toISOString().replace('T', ' ').substring(0, 16);
+};
 
 function randBetween(min, max) {
   return min + BigInt(Math.floor(Math.random() * Number(max - min)));
