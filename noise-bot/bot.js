@@ -136,14 +136,15 @@ async function fetchOpportunity() {
 async function reportResult(entry) {
   if (!APPS_SCRIPT_URL) return;
   try {
-    await fetch(APPS_SCRIPT_URL, {
+    const res = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(entry),
-      redirect: 'follow',
+      redirect: 'manual',  // 리다이렉트 따라가지 않음 → 원본 POST가 doPost() 트리거
     });
+    console.log(`[Exec] reportResult status: ${res.status}`);
   } catch (e) {
-    console.error('[Execution] reportResult failed:', e.message);
+    console.error('[Exec] reportResult failed:', e.message);
   }
 }
 
