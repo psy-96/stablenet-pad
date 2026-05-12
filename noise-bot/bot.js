@@ -3,8 +3,9 @@ import * as dotenv from 'dotenv';
 dotenv.config();
 
 // ─── Config ──────────────────────────────────────────────────────
-const RPC_URL    = process.env.RPC_URL    || 'https://rpc.stablenet.network/archive';
-const PRIVATE_KEY = process.env.PRIVATE_KEY;
+const RPC_URL         = process.env.RPC_URL    || 'https://api.test.stablenet.network';
+const PRIVATE_KEY     = process.env.PRIVATE_KEY;
+const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL;
 
 const SWAP_ROUTER = '0x8920e24184Ae7a1D55d64ef42f319139E9A72885';
 const FEE = 500;
@@ -16,8 +17,8 @@ const TOKEN = {
   TEUR: '0xe7b1040376e005ce0fa8b5914d00adbf6e4cc99d',
 };
 
-// 스왑 페어 정의 (양방향)
-const PAIRS = [
+// ── Noise Bot: 랜덤 스왑 페어 ─────────────────────────────────────
+const NOISE_PAIRS = [
   { name: 'TUSD/TKRW', in: TOKEN.TUSD, out: TOKEN.TKRW },
   { name: 'TKRW/TUSD', in: TOKEN.TKRW, out: TOKEN.TUSD },
   { name: 'TUSD/TJPY', in: TOKEN.TUSD, out: TOKEN.TJPY },
@@ -28,24 +29,37 @@ const PAIRS = [
   { name: 'TJPY/TKRW', in: TOKEN.TJPY, out: TOKEN.TKRW },
 ];
 
-// tokenIn별 스왑 금액 범위 (TUSD 5,000~20,000 기준 환산)
-const AMOUNT_RANGE = {
-  [TOKEN.TUSD]: { min: 5_000n,          max: 20_000n          },  // 5K~20K TUSD
-  [TOKEN.TKRW]: { min: 7_000_000n,      max: 28_000_000n      },  // ≈5K~20K USD
-  [TOKEN.TJPY]: { min: 800_000n,        max: 3_200_000n       },  // ≈5K~20K USD
-  [TOKEN.TEUR]: { min: 4_600n,          max: 18_400n          },  // ≈5K~20K USD
+// tokenIn별 노이즈 스왑 금액 범위 (5K~20K TUSD 상당)
+const NOISE_AMOUNT = {
+  [TOKEN.TUSD]: { min: 5_000n,      max: 20_000n      },
+  [TOKEN.TKRW]: { min: 7_000_000n,  max: 28_000_000n  },
+  [TOKEN.TJPY]: { min: 800_000n,    max: 3_200_000n   },
+  [TOKEN.TEUR]: { min: 4_600n,      max: 18_400n      },
 };
 
-// 실행 간격: 15~45분 랜덤
-const MIN_INTERVAL_MS = 15 * 60 * 1000;
-const MAX_INTERVAL_MS = 45 * 60 * 1000;
+const NOISE_MIN_INTERVAL = 15 * 60 * 1000;
+const NOISE_MAX_INTERVAL = 45 * 60 * 1000;
+
+// ── Execution Bot: 방향 → 스왑 설정 ──────────────────────────────
+const SWAP_MAP = {
+  'USDKRW_BUY stUSD':  { in: TOKEN.TKRW, out: TOKEN.TUSD, amount: 14_000_000n },
+  'USDKRW_BUY stKRW':  { in: TOKEN.TUSD, out: TOKEN.TKRW, amount: 10_000n },
+  'USDJPY_BUY stUSD':  { in: TOKEN.TJPY, out: TOKEN.TUSD, amount: 1_540_000n },
+  'USDJPY_BUY stJPY':  { in: TOKEN.TUSD, out: TOKEN.TJPY, amount: 10_000n },
+  'USDEUR_SELL stUSD': { in: TOKEN.TUSD, out: TOKEN.TEUR, amount: 10_000n },
+  'USDEUR_BUY stUSD':  { in: TOKEN.TEUR, out: TOKEN.TUSD, amount: 9_200n },
+  'KRWJPY_BUY stKRW':  { in: TOKEN.TJPY, out: TOKEN.TKRW, amount: 1_540_000n },
+  'KRWJPY_BUY stJPY':  { in: TOKEN.TKRW, out: TOKEN.TJPY, amount: 14_000_000n },
+};
+
+const EXEC_POLL_INTERVAL = 5 * 60 * 1000;   // 5분마다 기회 체크
+const EXEC_COOLDOWN      = 30 * 60 * 1000;  // 실행 후 30분 쿨다운
 
 // ─── ABIs ────────────────────────────────────────────────────────
 const ERC20_ABI = [
   'function approve(address spender, uint256 amount) returns (bool)',
   'function allowance(address owner, address spender) view returns (uint256)',
   'function balanceOf(address account) view returns (uint256)',
-  'function decimals() view returns (uint8)',
 ];
 
 const ROUTER_ABI = [
@@ -57,34 +71,28 @@ const ROUTER_ABI = [
 ];
 
 // ─── Helpers ─────────────────────────────────────────────────────
+const sleep  = ms => new Promise(r => setTimeout(r, ms));
+const nowStr = ()  => new Date().toISOString().replace('T', ' ').substring(0, 16);
+
 function randBetween(min, max) {
-  const range = max - min;
-  return min + BigInt(Math.floor(Math.random() * Number(range)));
+  return min + BigInt(Math.floor(Math.random() * Number(max - min)));
+}
+function randMs(min, max) {
+  return Math.floor(Math.random() * (max - min)) + min;
+}
+function fmtMs(ms) {
+  const m = Math.floor(ms / 60000), s = Math.floor((ms % 60000) / 1000);
+  return `${m}분 ${s}초`;
 }
 
-function randMs(minMs, maxMs) {
-  return Math.floor(Math.random() * (maxMs - minMs)) + minMs;
-}
-
-function sleep(ms) {
-  return new Promise(r => setTimeout(r, ms));
-}
-
-function formatMs(ms) {
-  const min = Math.floor(ms / 60000);
-  const sec = Math.floor((ms % 60000) / 1000);
-  return `${min}분 ${sec}초`;
-}
-
-// ─── Approve all tokens to SwapRouter ────────────────────────────
+// ─── Approve ─────────────────────────────────────────────────────
 async function ensureApprovals(wallet) {
-  const MAX = ethers.MaxUint256;
   for (const [symbol, address] of Object.entries(TOKEN)) {
-    const token = new ethers.Contract(address, ERC20_ABI, wallet);
+    const token     = new ethers.Contract(address, ERC20_ABI, wallet);
     const allowance = await token.allowance(wallet.address, SWAP_ROUTER);
     if (allowance < ethers.parseUnits('1000000', 18)) {
       console.log(`  Approving ${symbol}...`);
-      const tx = await token.approve(SWAP_ROUTER, MAX);
+      const tx = await token.approve(SWAP_ROUTER, ethers.MaxUint256);
       await tx.wait();
       console.log(`  ✅ ${symbol} approved`);
     } else {
@@ -93,76 +101,154 @@ async function ensureApprovals(wallet) {
   }
 }
 
-// ─── Execute single swap ──────────────────────────────────────────
-async function executeSwap(wallet, router, pair) {
-  const range  = AMOUNT_RANGE[pair.in];
-  const amountIn = randBetween(range.min, range.max) * 10n ** 18n;
-
-  // 잔액 확인
-  const token = new ethers.Contract(pair.in, ERC20_ABI, wallet);
+// ─── 공통 스왑 실행 ───────────────────────────────────────────────
+async function doSwap(wallet, router, tokenIn, tokenOut, amountIn) {
+  const token   = new ethers.Contract(tokenIn, ERC20_ABI, wallet);
   const balance = await token.balanceOf(wallet.address);
-  if (balance < amountIn) {
-    console.log(`  ⚠️  잔액 부족 (${pair.name}), 스킵`);
-    return null;
-  }
+  if (balance < amountIn) throw new Error(`잔액 부족: ${balance} < ${amountIn}`);
 
-  const params = {
-    tokenIn:              pair.in,
-    tokenOut:             pair.out,
-    fee:                  FEE,
-    recipient:            wallet.address,
-    deadline:             BigInt(Math.floor(Date.now() / 1000) + 1800),
-    amountIn:             amountIn,
-    amountOutMinimum:     0n,
-    sqrtPriceLimitX96:    0n,
-  };
-
-  const tx = await router.exactInputSingle(params);
-  const receipt = await tx.wait();
-  return receipt;
+  const tx = await router.exactInputSingle({
+    tokenIn,
+    tokenOut,
+    fee:               FEE,
+    recipient:         wallet.address,
+    deadline:          BigInt(Math.floor(Date.now() / 1000) + 1800),
+    amountIn,
+    amountOutMinimum:  0n,
+    sqrtPriceLimitX96: 0n,
+  });
+  return await tx.wait();
 }
 
-// ─── Main loop ───────────────────────────────────────────────────
+// ─── Apps Script 통신 ────────────────────────────────────────────
+async function fetchOpportunity() {
+  if (!APPS_SCRIPT_URL) return null;
+  try {
+    const res  = await fetch(APPS_SCRIPT_URL);
+    const data = await res.json();
+    return data.result === 'found' ? data : null;
+  } catch (e) {
+    console.error('[Execution] fetchOpportunity failed:', e.message);
+    return null;
+  }
+}
+
+async function reportResult(entry) {
+  if (!APPS_SCRIPT_URL) return;
+  try {
+    await fetch(APPS_SCRIPT_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(entry),
+      redirect: 'follow',
+    });
+  } catch (e) {
+    console.error('[Execution] reportResult failed:', e.message);
+  }
+}
+
+// ─── Noise Bot 루프 ───────────────────────────────────────────────
+async function noiseLoop(wallet, router) {
+  let count = 0;
+  while (true) {
+    const waitMs = randMs(NOISE_MIN_INTERVAL, NOISE_MAX_INTERVAL);
+    console.log(`[Noise] ⏳ 다음 스왑까지 ${fmtMs(waitMs)} 대기...`);
+    await sleep(waitMs);
+
+    const pair   = NOISE_PAIRS[Math.floor(Math.random() * NOISE_PAIRS.length)];
+    const range  = NOISE_AMOUNT[pair.in];
+    const amount = randBetween(range.min, range.max) * 10n ** 18n;
+
+    count++;
+    try {
+      const receipt = await doSwap(wallet, router, pair.in, pair.out, amount);
+      console.log(`[Noise] #${count} ${pair.name} ✅ tx: ${receipt.hash}`);
+    } catch (e) {
+      if (e.message.includes('잔액 부족')) {
+        console.log(`[Noise] #${count} ${pair.name} ⚠️ 잔액 부족, 스킵`);
+      } else {
+        console.error(`[Noise] #${count} ${pair.name} ❌ ${e.message}`);
+      }
+    }
+  }
+}
+
+// ─── Execution Bot 루프 ───────────────────────────────────────────
+async function executionLoop(wallet, router) {
+  let lastExecutedAt = 0;
+
+  while (true) {
+    await sleep(EXEC_POLL_INTERVAL);
+
+    const opp = await fetchOpportunity();
+    if (!opp) {
+      console.log(`[Exec] 기회 없음`);
+      continue;
+    }
+
+    const elapsed = Date.now() - lastExecutedAt;
+    if (elapsed < EXEC_COOLDOWN) {
+      const remaining = Math.ceil((EXEC_COOLDOWN - elapsed) / 60000);
+      console.log(`[Exec] 쿨다운 중 (${remaining}분 남음)`);
+      continue;
+    }
+
+    const key    = `${opp.pair}_${opp.direction}`;
+    const config = SWAP_MAP[key];
+
+    if (!config) {
+      console.warn(`[Exec] 알 수 없는 방향: ${key}`);
+      continue;
+    }
+
+    console.log(`\n[Exec] 기회 감지 — ${opp.pair} ${opp.direction} ${opp.spread_pct}`);
+
+    try {
+      const receipt = await doSwap(
+        wallet, router,
+        config.in, config.out,
+        config.amount * 10n ** 18n
+      );
+
+      console.log(`[Exec] ✅ 스왑 성공 | tx: ${receipt.hash}`);
+      await reportResult({
+        executed_at: nowStr(), pair: opp.pair,
+        direction: opp.direction, spread_pct: opp.spread_pct,
+        tx_hash: receipt.hash, status: 'EXECUTED', pnl_est: '',
+      });
+      lastExecutedAt = Date.now();
+
+    } catch (e) {
+      console.error(`[Exec] ❌ 스왑 실패: ${e.message}`);
+      await reportResult({
+        executed_at: nowStr(), pair: opp.pair,
+        direction: opp.direction, spread_pct: opp.spread_pct,
+        tx_hash: 'FAILED', status: 'FAILED', pnl_est: '',
+      });
+    }
+  }
+}
+
+// ─── Main ────────────────────────────────────────────────────────
 async function main() {
-  if (!PRIVATE_KEY) throw new Error('PRIVATE_KEY not set in .env');
+  if (!PRIVATE_KEY) throw new Error('PRIVATE_KEY not set');
 
   const provider = new ethers.JsonRpcProvider(RPC_URL);
   const wallet   = new ethers.Wallet(PRIVATE_KEY, provider);
   const router   = new ethers.Contract(SWAP_ROUTER, ROUTER_ABI, wallet);
 
-  console.log('🤖 Noise Bot 시작');
+  console.log('🤖 Noise Bot + Execution Bot 시작');
   console.log(`   지갑: ${wallet.address}`);
   console.log(`   RPC:  ${RPC_URL}\n`);
 
-  // 최초 1회 approve
   console.log('── Approve 확인 중...');
   await ensureApprovals(wallet);
   console.log('');
 
-  let swapCount = 0;
-
-  while (true) {
-    // 랜덤 대기
-    const waitMs = randMs(MIN_INTERVAL_MS, MAX_INTERVAL_MS);
-    console.log(`⏳ 다음 스왑까지 ${formatMs(waitMs)} 대기...`);
-    await sleep(waitMs);
-
-    // 랜덤 페어 선택
-    const pair = PAIRS[Math.floor(Math.random() * PAIRS.length)];
-    swapCount++;
-
-    console.log(`\n[#${swapCount}] ${new Date().toISOString()}`);
-    console.log(`   페어: ${pair.name}`);
-
-    try {
-      const receipt = await executeSwap(wallet, router, pair);
-      if (receipt) {
-        console.log(`   ✅ 스왑 성공 | tx: ${receipt.hash}`);
-      }
-    } catch (err) {
-      console.error(`   ❌ 스왑 실패: ${err.message}`);
-    }
-  }
+  await Promise.all([
+    noiseLoop(wallet, router),
+    executionLoop(wallet, router),
+  ]);
 }
 
 main().catch(console.error);
