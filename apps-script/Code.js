@@ -166,22 +166,25 @@ function appendLog(ss, fx, pool, cfg) {
       spread_pct: '-', status: 'NO_OP', pnl_est: ''
     });
   } else {
-    const top = triggered.sort((a, b) => Math.abs(b.spread) - Math.abs(a.spread))[0];
-    const directionMap = {
-      USDKRW: top.spread < 0 ? 'BUY stUSD'  : 'BUY stKRW',
-      USDJPY: top.spread < 0 ? 'BUY stUSD'  : 'BUY stJPY',
-      USDEUR: top.spread < 0 ? 'SELL stUSD' : 'BUY stUSD',
-      KRWJPY: top.spread < 0 ? 'BUY stKRW'  : 'BUY stJPY',
-    };
-    appendTradeLog(ss, {
-      executed_at: now,
-      pair:        top.pair,
-      direction:   directionMap[top.pair] || '-',
-      spread_pct:  (top.spread * 100).toFixed(4) + '%',
-      status:      'OPPORTUNITY_DETECTED',
-      pnl_est:     (10000 * Math.abs(top.spread)).toFixed(2)
+    const directionMap = (pair, spread) => ({
+      USDKRW: spread < 0 ? 'BUY stUSD'  : 'BUY stKRW',
+      USDJPY: spread < 0 ? 'BUY stUSD'  : 'BUY stJPY',
+      USDEUR: spread < 0 ? 'SELL stUSD' : 'BUY stUSD',
+      KRWJPY: spread < 0 ? 'BUY stKRW'  : 'BUY stJPY',
+    })[pair] || '-';
+
+    // threshold 초과 페어 전부 기록 (dedup은 appendTradeLog 내부에서 처리)
+    triggered.forEach(({ pair, spread }) => {
+      appendTradeLog(ss, {
+        executed_at: now,
+        pair,
+        direction:  directionMap(pair, spread),
+        spread_pct: (spread * 100).toFixed(4) + '%',
+        status:     'OPPORTUNITY_DETECTED',
+        pnl_est:    (10000 * Math.abs(spread)).toFixed(2),
+      });
+      console.log(`[TRIGGER] ${nowStr} — ${pair} ${(spread * 100).toFixed(2)}%`);
     });
-    console.log(`[TRIGGER] ${nowStr} — ${top.pair} ${(top.spread * 100).toFixed(2)}%`);
   }
 }
 
@@ -210,12 +213,16 @@ function appendTradeLog(ss, entry) {
     return;
   }
 
+  // 컬럼 순서: A executed_at, B pair, C direction,
+  // D fx_rate, E pool_price, F spread_%,
+  // G token_in, H amount_in, I token_out, J amount_out,
+  // K tx_hash, L status, M pnl_est
   sheet.appendRow([
-    entryDate,  // Date 객체로 저장 → UTC 오차 없음
-    entry.pair, entry.direction,
-    entry.token_in  || '', entry.token_out || '', entry.spread_pct,
-    entry.fx_rate   || '', entry.pool_price || '',
-    entry.amount_in || '', entry.amount_out || '',
+    entryDate,
+    entry.pair,        entry.direction,
+    entry.fx_rate      || '', entry.pool_price  || '', entry.spread_pct,
+    entry.token_in     || '', entry.amount_in   || '',
+    entry.token_out    || '', entry.amount_out  || '',
     entry.tx_hash || 'NOT_EXECUTED', entry.status, entry.pnl_est
   ]);
 }
@@ -346,43 +353,56 @@ function doGet(e) {
 
   if (unexecuted.length === 0) {
     return ContentService
-      .createTextOutput(JSON.stringify({ result: 'none' }))
+      .createTextOutput(JSON.stringify({ result: 'none', opportunities: [] }))
       .setMimeType(ContentService.MimeType.JSON);
   }
 
-  const latest = unexecuted[unexecuted.length - 1];
-  const pair   = String(latest[1]);
-
-  // Log 탭에서 같은 시각 행의 fx_rate / pool_price 조회
+  // Log 탭 로드 (fx_rate / pool_price 조회용)
   const LOG_COLS = {
     USDKRW: { fx: 1, pool: 2 },
     USDJPY:  { fx: 4, pool: 5 },
     USDEUR:  { fx: 7, pool: 8 },
     KRWJPY:  { fx: 10, pool: 11 },
   };
-  const latestTs  = Utilities.formatDate(parseSheetDate(latest[0]), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
-  const logSheet  = ss.getSheetByName('Log');
-  const logData   = logSheet ? logSheet.getDataRange().getValues() : [];
-  const logRow    = logData.slice(1).find(row => {
-    const ts = Utilities.formatDate(parseSheetDate(row[0]), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
-    return ts === latestTs;
-  });
-  const cols     = LOG_COLS[pair];
-  const fxRate   = (logRow && cols) ? logRow[cols.fx]   : null;
-  const poolPrice = (logRow && cols) ? logRow[cols.pool] : null;
+  const tz       = Session.getScriptTimeZone();
+  const logSheet = ss.getSheetByName('Log');
+  const logData  = logSheet ? logSheet.getDataRange().getValues() : [];
 
-  return ContentService
-    .createTextOutput(JSON.stringify({
-      result:      'found',
-      executed_at: latestTs,
+  // 페어별 최신 행만 1개씩 추출 (같은 페어 여러 행 있을 경우 마지막 우선)
+  const seenPairs = new Set();
+  const dedupedRows = [];
+  for (let i = unexecuted.length - 1; i >= 0; i--) {
+    const p = String(unexecuted[i][1]);
+    if (!seenPairs.has(p)) {
+      seenPairs.add(p);
+      dedupedRows.unshift(unexecuted[i]);
+    }
+  }
+
+  const opportunities = dedupedRows.map(row => {
+    const pair   = String(row[1]);
+    const rowTs  = Utilities.formatDate(parseSheetDate(row[0]), tz, 'yyyy-MM-dd HH:mm');
+    const logRow = logData.slice(1).find(lr => {
+      return Utilities.formatDate(parseSheetDate(lr[0]), tz, 'yyyy-MM-dd HH:mm') === rowTs;
+    });
+    const cols     = LOG_COLS[pair];
+    const fxRate   = (logRow && cols) ? logRow[cols.fx]   : null;
+    const poolPrice = (logRow && cols) ? logRow[cols.pool] : null;
+
+    return {
+      executed_at: rowTs,
       pair,
-      direction:   latest[2],
-      spread_pct: typeof latest[5] === 'number'
-        ? (latest[5] * 100).toFixed(4) + '%'
-        : latest[5],
+      direction:   row[2],
+      spread_pct:  typeof row[5] === 'number'
+        ? (row[5] * 100).toFixed(4) + '%'
+        : row[5],
       fx_rate:    fxRate,
       pool_price: poolPrice,
-    }))
+    };
+  });
+
+  return ContentService
+    .createTextOutput(JSON.stringify({ result: 'found', opportunities }))
     .setMimeType(ContentService.MimeType.JSON);
 }
 

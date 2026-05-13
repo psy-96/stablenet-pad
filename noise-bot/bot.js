@@ -132,15 +132,15 @@ async function doSwap(wallet, router, tokenIn, tokenOut, amountIn) {
 }
 
 // ─── Apps Script 통신 ────────────────────────────────────────────
-async function fetchOpportunity() {
-  if (!APPS_SCRIPT_URL) return null;
+async function fetchOpportunities() {
+  if (!APPS_SCRIPT_URL) return [];
   try {
     const res  = await fetch(APPS_SCRIPT_URL);
     const data = await res.json();
-    return data.result === 'found' ? data : null;
+    return data.result === 'found' ? (data.opportunities || []) : [];
   } catch (e) {
-    console.error('[Execution] fetchOpportunity failed:', e.message);
-    return null;
+    console.error('[Execution] fetchOpportunities failed:', e.message);
+    return [];
   }
 }
 
@@ -198,84 +198,87 @@ async function noiseLoop(wallet, router) {
 
 // ─── Execution Bot 루프 ───────────────────────────────────────────
 async function executionLoop(wallet, router) {
-  let lastExecutedAt = 0;
+  // 페어별 마지막 실행 시각 (Map<pair, timestamp>)
+  const lastExecutedAt = new Map();
 
   while (true) {
     await sleep(EXEC_POLL_INTERVAL);
 
-    const opp = await fetchOpportunity();
-    if (!opp) {
+    const opps = await fetchOpportunities();
+    if (opps.length === 0) {
       console.log(`[Exec] 기회 없음`);
       continue;
     }
 
-    const elapsed = Date.now() - lastExecutedAt;
-    if (elapsed < EXEC_COOLDOWN) {
-      const remaining = Math.ceil((EXEC_COOLDOWN - elapsed) / 60000);
-      console.log(`[Exec] 쿨다운 중 (${remaining}분 남음)`);
-      continue;
-    }
+    for (const opp of opps) {
+      const elapsed  = Date.now() - (lastExecutedAt.get(opp.pair) || 0);
+      if (elapsed < EXEC_COOLDOWN) {
+        const remaining = Math.ceil((EXEC_COOLDOWN - elapsed) / 60000);
+        console.log(`[Exec] ${opp.pair} 쿨다운 중 (${remaining}분 남음)`);
+        continue;
+      }
 
-    const key    = `${opp.pair}_${opp.direction}`;
-    const config = SWAP_MAP[key];
+      const key    = `${opp.pair}_${opp.direction}`;
+      const config = SWAP_MAP[key];
 
-    if (!config) {
-      console.warn(`[Exec] 알 수 없는 방향: ${key}`);
-      continue;
-    }
+      if (!config) {
+        console.warn(`[Exec] 알 수 없는 방향: ${key}`);
+        continue;
+      }
 
-    console.log(`\n[Exec] 기회 감지 — ${opp.pair} ${opp.direction} ${opp.spread_pct}`);
+      console.log(`\n[Exec] 기회 감지 — ${opp.pair} ${opp.direction} ${opp.spread_pct}`);
 
-    try {
-      const amountIn  = config.amount * 10n ** 18n;
-      const receipt   = await doSwap(wallet, router, config.in, config.out, amountIn);
+      try {
+        const amountIn = config.amount * 10n ** 18n;
+        const receipt  = await doSwap(wallet, router, config.in, config.out, amountIn);
 
-      // receipt 로그에서 tokenOut Transfer → wallet 이벤트 파싱
-      const recipientPadded = ethers.zeroPadValue(wallet.address, 32).toLowerCase();
-      const outLog = receipt.logs.find(log =>
-        log.address.toLowerCase() === config.out.toLowerCase() &&
-        log.topics[0] === TRANSFER_TOPIC &&
-        log.topics[2]?.toLowerCase() === recipientPadded
-      );
-      const amountOut = outLog
-        ? (BigInt(outLog.data) / 10n ** 18n).toString()
-        : '';
+        // receipt 로그에서 tokenOut Transfer → wallet 이벤트 파싱
+        const recipientPadded = ethers.zeroPadValue(wallet.address, 32).toLowerCase();
+        const outLog = receipt.logs.find(log =>
+          log.address.toLowerCase() === config.out.toLowerCase() &&
+          log.topics[0] === TRANSFER_TOPIC &&
+          log.topics[2]?.toLowerCase() === recipientPadded
+        );
+        const amountOut = outLog
+          ? (BigInt(outLog.data) / 10n ** 18n).toString()
+          : '';
 
-      console.log(`[Exec] ✅ 스왑 성공 | tx: ${receipt.hash} | amountOut: ${amountOut}`);
-      await reportResult({
-        executed_at:       nowStr(),
-        pair:              opp.pair,
-        direction:         opp.direction,
-        spread_pct:        opp.spread_pct,
-        tx_hash:           receipt.hash,
-        status:            'EXECUTED',
-        pnl_est:           '',
-        token_in:          TOKEN_SYMBOL[config.in.toLowerCase()]  || config.in,
-        token_out:         TOKEN_SYMBOL[config.out.toLowerCase()] || config.out,
-        fx_rate_at_exec:   opp.fx_rate    ?? '',
-        pool_price_at_exec: opp.pool_price ?? '',
-        amount_in:         config.amount.toString(),
-        amount_out:        amountOut,
-      });
-      lastExecutedAt = Date.now();
+        console.log(`[Exec] ✅ ${opp.pair} 스왑 성공 | tx: ${receipt.hash} | amountOut: ${amountOut}`);
+        await reportResult({
+          executed_at:        nowStr(),
+          pair:               opp.pair,
+          direction:          opp.direction,
+          spread_pct:         opp.spread_pct,
+          tx_hash:            receipt.hash,
+          status:             'EXECUTED',
+          pnl_est:            '',
+          token_in:           TOKEN_SYMBOL[config.in.toLowerCase()]  || config.in,
+          token_out:          TOKEN_SYMBOL[config.out.toLowerCase()] || config.out,
+          fx_rate_at_exec:    opp.fx_rate    ?? '',
+          pool_price_at_exec: opp.pool_price ?? '',
+          amount_in:          config.amount.toString(),
+          amount_out:         amountOut,
+        });
+        lastExecutedAt.set(opp.pair, Date.now());
 
-    } catch (e) {
-      console.error(`[Exec] ❌ 스왑 실패: ${e.message}`);
-      await reportResult({
-        executed_at: nowStr(),
-        pair:        opp.pair,
-        direction:   opp.direction,
-        spread_pct:  opp.spread_pct,
-        tx_hash:     'FAILED',
-        status:      'FAILED',
-        pnl_est:     '',
-        token_in:    TOKEN_SYMBOL[config.in.toLowerCase()]  || config.in,
-        token_out:   TOKEN_SYMBOL[config.out.toLowerCase()] || config.out,
-        fx_rate_at_exec:    opp.fx_rate    ?? '',
-        pool_price_at_exec: opp.pool_price ?? '',
-        amount_in:   config.amount.toString(),
-        amount_out:  '',
-      });
+      } catch (e) {
+        console.error(`[Exec] ❌ ${opp.pair} 스왑 실패: ${e.message}`);
+        await reportResult({
+          executed_at:        nowStr(),
+          pair:               opp.pair,
+          direction:          opp.direction,
+          spread_pct:         opp.spread_pct,
+          tx_hash:            'FAILED',
+          status:             'FAILED',
+          pnl_est:            '',
+          token_in:           TOKEN_SYMBOL[config.in.toLowerCase()]  || config.in,
+          token_out:          TOKEN_SYMBOL[config.out.toLowerCase()] || config.out,
+          fx_rate_at_exec:    opp.fx_rate    ?? '',
+          pool_price_at_exec: opp.pool_price ?? '',
+          amount_in:          config.amount.toString(),
+          amount_out:         '',
+        });
+      }
     }
   }
 }
