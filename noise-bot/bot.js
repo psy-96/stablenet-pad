@@ -168,10 +168,21 @@ async function noiseLoop(wallet, router) {
       const receipt = await doSwap(wallet, router, pair.in, pair.out, amount);
       console.log(`[Noise] #${count} ${pair.name} ✅ tx: ${receipt.hash}`);
     } catch (e) {
-      if (e.message.includes('잔액 부족')) {
+      if (e.message?.includes('잔액 부족')) {
         console.log(`[Noise] #${count} ${pair.name} ⚠️ 잔액 부족, 스킵`);
+      } else if (e.message?.includes('user rejected') || e.code === 4001) {
+        console.error(`[Noise] #${count} ${pair.name} ❌ 트랜잭션 거부`);
+      } else if (e.message?.includes('nonce') || e.message?.includes('replacement')) {
+        console.error(`[Noise] #${count} ${pair.name} ❌ nonce 충돌: ${e.toString()}`);
+        console.error(`  stack: ${e.stack}`);
+      } else if (e.message?.includes('timeout') || e.message?.includes('TIMEOUT')) {
+        console.error(`[Noise] #${count} ${pair.name} ❌ RPC 타임아웃: ${e.toString()}`);
+      } else if (e.message?.includes('CALL_EXCEPTION') || e.message?.includes('revert')) {
+        console.error(`[Noise] #${count} ${pair.name} ❌ 컨트랙트 revert: ${e.toString()}`);
+        console.error(`  stack: ${e.stack}`);
       } else {
-        console.error(`[Noise] #${count} ${pair.name} ❌ ${e.message}`);
+        console.error(`[Noise] #${count} ${pair.name} ❌ ${e.toString()}`);
+        console.error(`  stack: ${e.stack}`);
       }
     }
   }
