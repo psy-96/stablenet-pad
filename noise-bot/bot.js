@@ -70,6 +70,14 @@ const ROUTER_ABI = [
   ) payable returns (uint256 amountOut)`,
 ];
 
+// TOKEN 주소 → 심볼 역방향 맵
+const TOKEN_SYMBOL = Object.fromEntries(
+  Object.entries(TOKEN).map(([sym, addr]) => [addr.toLowerCase(), sym])
+);
+
+// ERC20 Transfer 이벤트 토픽
+const TRANSFER_TOPIC = ethers.id('Transfer(address,address,uint256)');
+
 // ─── Helpers ─────────────────────────────────────────────────────
 const sleep  = ms => new Promise(r => setTimeout(r, ms));
 const nowStr = () => {
@@ -219,26 +227,54 @@ async function executionLoop(wallet, router) {
     console.log(`\n[Exec] 기회 감지 — ${opp.pair} ${opp.direction} ${opp.spread_pct}`);
 
     try {
-      const receipt = await doSwap(
-        wallet, router,
-        config.in, config.out,
-        config.amount * 10n ** 18n
-      );
+      const amountIn  = config.amount * 10n ** 18n;
+      const receipt   = await doSwap(wallet, router, config.in, config.out, amountIn);
 
-      console.log(`[Exec] ✅ 스왑 성공 | tx: ${receipt.hash}`);
+      // receipt 로그에서 tokenOut Transfer → wallet 이벤트 파싱
+      const recipientPadded = ethers.zeroPadValue(wallet.address, 32).toLowerCase();
+      const outLog = receipt.logs.find(log =>
+        log.address.toLowerCase() === config.out.toLowerCase() &&
+        log.topics[0] === TRANSFER_TOPIC &&
+        log.topics[2]?.toLowerCase() === recipientPadded
+      );
+      const amountOut = outLog
+        ? (BigInt(outLog.data) / 10n ** 18n).toString()
+        : '';
+
+      console.log(`[Exec] ✅ 스왑 성공 | tx: ${receipt.hash} | amountOut: ${amountOut}`);
       await reportResult({
-        executed_at: nowStr(), pair: opp.pair,
-        direction: opp.direction, spread_pct: opp.spread_pct,
-        tx_hash: receipt.hash, status: 'EXECUTED', pnl_est: '',
+        executed_at:       nowStr(),
+        pair:              opp.pair,
+        direction:         opp.direction,
+        spread_pct:        opp.spread_pct,
+        tx_hash:           receipt.hash,
+        status:            'EXECUTED',
+        pnl_est:           '',
+        token_in:          TOKEN_SYMBOL[config.in.toLowerCase()]  || config.in,
+        token_out:         TOKEN_SYMBOL[config.out.toLowerCase()] || config.out,
+        fx_rate_at_exec:   opp.fx_rate    ?? '',
+        pool_price_at_exec: opp.pool_price ?? '',
+        amount_in:         config.amount.toString(),
+        amount_out:        amountOut,
       });
       lastExecutedAt = Date.now();
 
     } catch (e) {
       console.error(`[Exec] ❌ 스왑 실패: ${e.message}`);
       await reportResult({
-        executed_at: nowStr(), pair: opp.pair,
-        direction: opp.direction, spread_pct: opp.spread_pct,
-        tx_hash: 'FAILED', status: 'FAILED', pnl_est: '',
+        executed_at: nowStr(),
+        pair:        opp.pair,
+        direction:   opp.direction,
+        spread_pct:  opp.spread_pct,
+        tx_hash:     'FAILED',
+        status:      'FAILED',
+        pnl_est:     '',
+        token_in:    TOKEN_SYMBOL[config.in.toLowerCase()]  || config.in,
+        token_out:   TOKEN_SYMBOL[config.out.toLowerCase()] || config.out,
+        fx_rate_at_exec:    opp.fx_rate    ?? '',
+        pool_price_at_exec: opp.pool_price ?? '',
+        amount_in:   config.amount.toString(),
+        amount_out:  '',
       });
     }
   }

@@ -148,7 +148,7 @@ function appendLog(ss, fx, pool, cfg) {
 
   // Log 기록 (A열부터)
   logSheet.appendRow([
-    nowStr,
+    now,  // Date 객체로 저장 → Sheets가 타임존 기준으로 올바르게 처리
     fx.USDKRW,  pool['USDKRW'],  spreads.USDKRW,
     fx.USDJPY,  pool['USDJPY'],  spreads.USDJPY,
     fx.USDEUR,  pool['USDEUR'],  spreads.USDEUR,
@@ -162,7 +162,7 @@ function appendLog(ss, fx, pool, cfg) {
 
   if (triggered.length === 0) {
     appendTradeLog(ss, {
-      executed_at: nowStr, pair: 'ALL', direction: '-',
+      executed_at: now, pair: 'ALL', direction: '-',
       spread_pct: '-', status: 'NO_OP', pnl_est: ''
     });
   } else {
@@ -174,7 +174,7 @@ function appendLog(ss, fx, pool, cfg) {
       KRWJPY: top.spread < 0 ? 'BUY stKRW'  : 'BUY stJPY',
     };
     appendTradeLog(ss, {
-      executed_at: nowStr,
+      executed_at: now,
       pair:        top.pair,
       direction:   directionMap[top.pair] || '-',
       spread_pct:  (top.spread * 100).toFixed(4) + '%',
@@ -189,25 +189,42 @@ function appendLog(ss, fx, pool, cfg) {
 function appendTradeLog(ss, entry) {
   const sheet    = ss.getSheetByName('Trade_Log');
   const existing = sheet.getDataRange().getValues();
+  const tz       = Session.getScriptTimeZone();
+
+  // executed_at을 항상 Date 객체로 정규화
+  // (appendLog는 Date, doPost는 "yyyy-MM-dd HH:mm" 문자열을 전달)
+  const entryDate = entry.executed_at instanceof Date
+    ? entry.executed_at
+    : strToLocalDate(String(entry.executed_at));
+  const entryDateStr = Utilities.formatDate(entryDate, tz, 'yyyy-MM-dd HH:mm');
 
   const isDuplicate = existing.slice(1).some(row => {
-    const rowDate = row[0] instanceof Date
-      ? Utilities.formatDate(row[0], Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm')
+    const rowDateStr = row[0] instanceof Date
+      ? Utilities.formatDate(row[0], tz, 'yyyy-MM-dd HH:mm')
       : String(row[0]).substring(0, 16);
-    return rowDate === entry.executed_at.substring(0, 16) && row[1] === entry.pair;
+    return rowDateStr === entryDateStr && row[1] === entry.pair;
   });
 
   if (isDuplicate) {
-    console.log(`[SKIP] Duplicate: ${entry.executed_at} ${entry.pair}`);
+    console.log(`[SKIP] Duplicate: ${entryDateStr} ${entry.pair}`);
     return;
   }
 
   sheet.appendRow([
-    entry.executed_at, entry.pair, entry.direction,
-    '', '', entry.spread_pct,
-    '', '', '', '',
+    entryDate,  // Date 객체로 저장 → UTC 오차 없음
+    entry.pair, entry.direction,
+    entry.token_in  || '', entry.token_out || '', entry.spread_pct,
+    entry.fx_rate   || '', entry.pool_price || '',
+    entry.amount_in || '', entry.amount_out || '',
     entry.tx_hash || 'NOT_EXECUTED', entry.status, entry.pnl_est
   ]);
+}
+
+// "yyyy-MM-dd HH:mm" 문자열 → 로컬 시간 기준 Date
+function strToLocalDate(str) {
+  const m = str.trim().match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
+  if (m) return new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5]);
+  return new Date(str);
 }
 
 // ─── Web App POST 엔드포인트 (외부 호출용) ────────────────────────
@@ -221,13 +238,19 @@ function doPost(e) {
     }
     const ss = SpreadsheetApp.getActiveSpreadsheet();
     appendTradeLog(ss, {
-      executed_at: data.executed_at,
-      pair:        data.pair,
-      direction:   data.direction  || '-',
-      spread_pct:  data.spread_pct || '',
-      status:      data.status,
-      pnl_est:     data.pnl_est    || '',
-      tx_hash:     data.tx_hash     || 'NOT_EXECUTED',
+      executed_at:        data.executed_at,
+      pair:               data.pair,
+      direction:          data.direction  || '-',
+      spread_pct:         data.spread_pct || '',
+      status:             data.status,
+      pnl_est:            data.pnl_est    || '',
+      tx_hash:            data.tx_hash    || 'NOT_EXECUTED',
+      token_in:           data.token_in           || '',
+      token_out:          data.token_out           || '',
+      fx_rate:            data.fx_rate_at_exec     || '',
+      pool_price:         data.pool_price_at_exec  || '',
+      amount_in:          data.amount_in            || '',
+      amount_out:         data.amount_out           || '',
     });
     return ContentService
       .createTextOutput(JSON.stringify({ result: 'success' }))
@@ -285,6 +308,14 @@ function setupTrigger() {
 // ─── 수동 테스트 ──────────────────────────────────────────────────
 function runOnce() { recordSnapshot(); }
 
+// ─── 날짜 파싱 헬퍼 (doGet 전용) ─────────────────────────────────
+// Date 객체로 저장된 행은 그대로 반환.
+// 레거시 문자열 행은 strToLocalDate()로 파싱.
+function parseSheetDate(val) {
+  if (val instanceof Date) return val;
+  return strToLocalDate(String(val));
+}
+
 // ─── 최신 미실행 기회 조회 (Execution Bot용) ──────────────────────
 function doGet(e) {
   const ss    = SpreadsheetApp.getActiveSpreadsheet();
@@ -299,8 +330,8 @@ function doGet(e) {
     data.slice(1)
       .filter(row => {
         if (String(row[11]) !== 'EXECUTED') return false;
-        const rowTime = row[0] instanceof Date ? row[0] : new Date(row[0]);
-        return (now - rowTime) < TWO_HOURS;
+        const diff = now - parseSheetDate(row[0]);
+        return diff >= 0 && diff < TWO_HOURS;
       })
       .map(row => String(row[1]))
   );
@@ -309,8 +340,8 @@ function doGet(e) {
   const unexecuted = data.slice(1).filter(row => {
     if (String(row[11]) !== 'OPPORTUNITY_DETECTED') return false;
     if (recentlyExecutedPairs.has(String(row[1]))) return false;
-    const rowTime = row[0] instanceof Date ? row[0] : new Date(row[0]);
-    return (now - rowTime) < TWO_HOURS;
+    const diff = now - parseSheetDate(row[0]);
+    return diff >= 0 && diff < TWO_HOURS;
   });
 
   if (unexecuted.length === 0) {
@@ -320,15 +351,60 @@ function doGet(e) {
   }
 
   const latest = unexecuted[unexecuted.length - 1];
+  const pair   = String(latest[1]);
+
+  // Log 탭에서 같은 시각 행의 fx_rate / pool_price 조회
+  const LOG_COLS = {
+    USDKRW: { fx: 1, pool: 2 },
+    USDJPY:  { fx: 4, pool: 5 },
+    USDEUR:  { fx: 7, pool: 8 },
+    KRWJPY:  { fx: 10, pool: 11 },
+  };
+  const latestTs  = Utilities.formatDate(parseSheetDate(latest[0]), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
+  const logSheet  = ss.getSheetByName('Log');
+  const logData   = logSheet ? logSheet.getDataRange().getValues() : [];
+  const logRow    = logData.slice(1).find(row => {
+    const ts = Utilities.formatDate(parseSheetDate(row[0]), Session.getScriptTimeZone(), 'yyyy-MM-dd HH:mm');
+    return ts === latestTs;
+  });
+  const cols     = LOG_COLS[pair];
+  const fxRate   = (logRow && cols) ? logRow[cols.fx]   : null;
+  const poolPrice = (logRow && cols) ? logRow[cols.pool] : null;
+
   return ContentService
     .createTextOutput(JSON.stringify({
       result:      'found',
-      executed_at: String(latest[0]).substring(0, 16),
-      pair:        latest[1],
+      executed_at: latestTs,
+      pair,
       direction:   latest[2],
       spread_pct: typeof latest[5] === 'number'
         ? (latest[5] * 100).toFixed(4) + '%'
         : latest[5],
+      fx_rate:    fxRate,
+      pool_price: poolPrice,
     }))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+// ─── doGet 진단용 (Apps Script 에디터에서 수동 실행) ──────────────
+function debugDoGet() {
+  const ss    = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName('Trade_Log');
+  const data  = sheet.getDataRange().getValues();
+  const now   = new Date();
+  const TWO_HOURS = 2 * 60 * 60 * 1000;
+
+  console.log('now:', now, '| now.getTime():', now.getTime());
+  console.log('total rows (incl. header):', data.length);
+
+  data.slice(1).forEach((row, i) => {
+    const parsed = parseSheetDate(row[0]);
+    const diff   = now - parsed;
+    console.log(
+      `row[${i+1}] raw="${row[0]}" type=${typeof row[0]} isDate=${row[0] instanceof Date}`,
+      `| parsed=${parsed} valid=${!isNaN(parsed)}`,
+      `| diff_min=${(diff/60000).toFixed(1)}`,
+      `| status="${row[11]}" pair="${row[1]}"`
+    );
+  });
 }
