@@ -291,21 +291,26 @@ function doGet(e) {
   const sheet = ss.getSheetByName('Trade_Log');
   const data  = sheet.getDataRange().getValues();
 
-  // 이미 EXECUTED된 pair+timestamp 목록
-  const executedKeys = new Set(
+  const now = new Date();
+  const TWO_HOURS = 2 * 60 * 60 * 1000;
+
+  // 2시간 이내에 EXECUTED된 페어 목록
+  const recentlyExecutedPairs = new Set(
     data.slice(1)
-      .filter(row => String(row[11]) === 'EXECUTED')
-      .map(row => `${String(row[0]).substring(0,16)}_${row[1]}`)
+      .filter(row => {
+        if (String(row[11]) !== 'EXECUTED') return false;
+        const rowTime = row[0] instanceof Date ? row[0] : new Date(row[0]);
+        return (now - rowTime) < TWO_HOURS;
+      })
+      .map(row => String(row[1]))
   );
 
-  // OPPORTUNITY_DETECTED 중 미실행 + 2시간 이내
-  const now = new Date();
+  // OPPORTUNITY_DETECTED 중 2시간 이내 + 같은 페어가 최근 실행되지 않은 것
   const unexecuted = data.slice(1).filter(row => {
     if (String(row[11]) !== 'OPPORTUNITY_DETECTED') return false;
-    const key = `${String(row[0]).substring(0,16)}_${row[1]}`;
-    if (executedKeys.has(key)) return false;
+    if (recentlyExecutedPairs.has(String(row[1]))) return false;
     const rowTime = row[0] instanceof Date ? row[0] : new Date(row[0]);
-    return (now - rowTime) < 2 * 60 * 60 * 1000; // 2시간 이내
+    return (now - rowTime) < TWO_HOURS;
   });
 
   if (unexecuted.length === 0) {
