@@ -147,13 +147,14 @@ async function fetchOpportunities() {
 async function reportResult(entry) {
   if (!APPS_SCRIPT_URL) return;
   try {
-    const res = await fetch(APPS_SCRIPT_URL, {
+    const res  = await fetch(APPS_SCRIPT_URL, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(entry),
       redirect: 'manual',  // 리다이렉트 따라가지 않음 → 원본 POST가 doPost() 트리거
     });
-    console.log(`[Exec] reportResult status: ${res.status}`);
+    const body = await res.text();
+    console.log(`[Exec] reportResult: ${res.status} ${body.substring(0, 80)}`);
   } catch (e) {
     console.error('[Exec] reportResult failed:', e.message);
   }
@@ -259,6 +260,7 @@ async function executionLoop(wallet, router) {
           amount_in:          config.amount.toString(),
           amount_out:         amountOut,
         });
+        await sleep(1000);  // Sheets 반영 대기
         lastExecutedAt.set(opp.pair, Date.now());
 
       } catch (e) {
@@ -278,6 +280,7 @@ async function executionLoop(wallet, router) {
           amount_in:          config.amount.toString(),
           amount_out:         '',
         });
+        await sleep(1000);  // Sheets 반영 대기
       }
     }
   }
