@@ -182,7 +182,27 @@ async function withdrawPosition(
   const owner = await signer.getAddress()
   console.log(`\n[Step 1] tokenId=${cfg.tokenId} 유동성 회수`)
 
-  const pos = await pm.positions(cfg.tokenId) as { liquidity: bigint; tickLower: bigint; tickUpper: bigint }
+  // 소유권 확인 — burn 완료된 tokenId는 ownerOf 자체가 revert됨
+  try {
+    const tokenOwner = await pm.ownerOf(cfg.tokenId) as string
+    if (tokenOwner.toLowerCase() !== owner.toLowerCase()) {
+      console.log(`  ⚠️  tokenId=${cfg.tokenId} 소유자가 다름 (${tokenOwner}) — 스킵`)
+      return { hadLiquidity: false }
+    }
+  } catch {
+    console.log(`  ⚠️  tokenId=${cfg.tokenId} ownerOf 실패 — 이미 burn됨, 스킵`)
+    return { hadLiquidity: false }
+  }
+
+  // positions() 조회
+  let pos: { liquidity: bigint; tickLower: bigint; tickUpper: bigint }
+  try {
+    pos = await pm.positions(cfg.tokenId) as typeof pos
+  } catch {
+    console.log(`  ⚠️  tokenId=${cfg.tokenId} positions 조회 실패 — 스킵`)
+    return { hadLiquidity: false }
+  }
+
   console.log(`  liquidity : ${pos.liquidity}`)
   console.log(`  tickRange : [${pos.tickLower}, ${pos.tickUpper}]`)
 
@@ -210,8 +230,8 @@ async function withdrawPosition(
   const MAX128 = (1n << 128n) - 1n
   const tx2 = await withRetry(
     () => pm.collect({
-      tokenId:   cfg.tokenId,
-      recipient: owner,
+      tokenId:    cfg.tokenId,
+      recipient:  owner,
       amount0Max: MAX128,
       amount1Max: MAX128,
     }),
