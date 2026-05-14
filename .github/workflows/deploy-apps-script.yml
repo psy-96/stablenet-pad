@@ -15,13 +15,13 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: '20'
+          node-version: '24'
 
       - name: Install clasp
         run: npm install -g @google/clasp
 
       - name: Restore clasp credentials
-        run: echo '${{ secrets.CLASPRC_JSON }}' > ~/.clasprc.json
+        run: printf '%s' '${{ secrets.CLASPRC_JSON }}' > ~/.clasprc.json
 
       - name: Push to Apps Script
         run: cd apps-script && clasp push --force
