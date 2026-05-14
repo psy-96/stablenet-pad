@@ -32,7 +32,7 @@ jobs:
           echo "{\"scriptId\":\"$SCRIPT_ID\",\"rootDir\":\".\"}" > apps-script/.clasp.json
 
       - name: Push to Apps Script
-        run: cd apps-script && clasp pull && clasp push
+        run: cd apps-script && clasp push
 
       - name: Deploy
         run: cd apps-script && clasp deploy --description "CI deploy ${{ github.sha }}"
