@@ -255,10 +255,11 @@ async function executionLoop(wallet, router) {
           pnl_est:            '',
           token_in:           TOKEN_SYMBOL[config.in.toLowerCase()]  || config.in,
           token_out:          TOKEN_SYMBOL[config.out.toLowerCase()] || config.out,
-          fx_rate_at_exec:    opp.fx_rate    ?? '',
-          pool_price_at_exec: opp.pool_price ?? '',
+          fx_rate_at_exec:    opp.fx_rate       ?? '',
+          pool_price_at_exec: opp.pool_price    ?? '',
           amount_in:          config.amount.toString(),
           amount_out:         amountOut,
+          opportunity_id:     opp.opportunity_id ?? '',
         });
         await sleep(1000);  // Sheets 반영 대기
         lastExecutedAt.set(opp.pair, Date.now());
@@ -275,10 +276,11 @@ async function executionLoop(wallet, router) {
           pnl_est:            '',
           token_in:           TOKEN_SYMBOL[config.in.toLowerCase()]  || config.in,
           token_out:          TOKEN_SYMBOL[config.out.toLowerCase()] || config.out,
-          fx_rate_at_exec:    opp.fx_rate    ?? '',
-          pool_price_at_exec: opp.pool_price ?? '',
+          fx_rate_at_exec:    opp.fx_rate       ?? '',
+          pool_price_at_exec: opp.pool_price    ?? '',
           amount_in:          config.amount.toString(),
           amount_out:         '',
+          opportunity_id:     opp.opportunity_id ?? '',
         });
         await sleep(1000);  // Sheets 반영 대기
       }

@@ -213,17 +213,22 @@ function appendTradeLog(ss, entry) {
     return;
   }
 
+  // opportunity_id: 제공된 경우 그대로, 없으면 OPPORTUNITY_DETECTED 행에서 생성
+  const opportunityId = entry.opportunity_id
+    || `${entry.pair}_${Utilities.formatDate(entryDate, tz, 'yyyyMMdd_HHmm')}`;
+
   // 컬럼 순서: A executed_at, B pair, C direction,
   // D fx_rate, E pool_price, F spread_%,
   // G token_in, H amount_in, I token_out, J amount_out,
-  // K tx_hash, L status, M pnl_est
+  // K tx_hash, L status, M pnl_est, N opportunity_id
   sheet.appendRow([
     entryDate,
     entry.pair,        entry.direction,
     entry.fx_rate      || '', entry.pool_price  || '', entry.spread_pct,
     entry.token_in     || '', entry.amount_in   || '',
     entry.token_out    || '', entry.amount_out  || '',
-    entry.tx_hash || 'NOT_EXECUTED', entry.status, entry.pnl_est
+    entry.tx_hash || 'NOT_EXECUTED', entry.status, entry.pnl_est,
+    opportunityId,
   ]);
 }
 
@@ -258,6 +263,7 @@ function doPost(e) {
       pool_price:         data.pool_price_at_exec  || '',
       amount_in:          data.amount_in            || '',
       amount_out:         data.amount_out           || '',
+      opportunity_id:     data.opportunity_id       || '',
     });
     return ContentService
       .createTextOutput(JSON.stringify({ result: 'success' }))
@@ -389,15 +395,21 @@ function doGet(e) {
     const fxRate   = (logRow && cols) ? logRow[cols.fx]   : null;
     const poolPrice = (logRow && cols) ? logRow[cols.pool] : null;
 
+    // opportunity_id: N열(index 13)에 저장된 값, 없으면 생성
+    const opportunityId = row[13]
+      ? String(row[13])
+      : `${pair}_${Utilities.formatDate(parseSheetDate(row[0]), tz, 'yyyyMMdd_HHmm')}`;
+
     return {
-      executed_at: rowTs,
+      executed_at:    rowTs,
       pair,
-      direction:   row[2],
-      spread_pct:  typeof row[5] === 'number'
+      direction:      row[2],
+      spread_pct:     typeof row[5] === 'number'
         ? (row[5] * 100).toFixed(4) + '%'
         : row[5],
-      fx_rate:    fxRate,
-      pool_price: poolPrice,
+      fx_rate:        fxRate,
+      pool_price:     poolPrice,
+      opportunity_id: opportunityId,
     };
   });
 
