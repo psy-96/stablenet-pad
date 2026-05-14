@@ -282,29 +282,42 @@ function createPortfolioTab() {
   if (!sheet) sheet = ss.insertSheet('Portfolio');
   sheet.clearContents();
 
-  // ── 섹션 1: 요약 ────────────────────────────────────────────────
-  sheet.getRange('A1').setValue('FX 시뮬레이션 포트폴리오');
+  // ── v0.1 결과 (정적 값) ──────────────────────────────────────────
+  sheet.getRange('A1').setValue('── v0.1 결과 (2026-05-11 ~ 2026-05-14) ──');
+  sheet.getRange('A2').setValue('총 기회 감지');       sheet.getRange('B2').setValue(106);
+  sheet.getRange('A3').setValue('총 실행 횟수');       sheet.getRange('B3').setValue(44);
+  sheet.getRange('A4').setValue('실행률');              sheet.getRange('B4').setValue(0.4151);
+  sheet.getRange('B4').setNumberFormat('0.00%');
+  sheet.getRange('A5').setValue('누적 추정 수익 (TUSD)'); sheet.getRange('B5').setValue(52607.44);
+  sheet.getRange('A6').setValue('비고');
+  sheet.getRange('B6').setValue('구조적 Spread(-8%) 환경. 실환율 기준 풀 재초기화 후 v0.2 시작');
+  // A7: 빈 행
+  sheet.getRange('A8').setValue('── v0.2 시작 (2026-05-14~) ──');
+  // A9: 빈 행
 
-  sheet.getRange('A3').setValue('총 기회 감지');
-  sheet.getRange('B3').setFormula('=COUNTIF(Trade_Log!L:L,"OPPORTUNITY_DETECTED")');
+  // ── 섹션 1: v0.2 요약 (수식) ─────────────────────────────────────
+  sheet.getRange('A10').setValue('FX 시뮬레이션 포트폴리오');
 
-  sheet.getRange('A4').setValue('총 실행 횟수');
-  sheet.getRange('B4').setFormula('=COUNTIF(Trade_Log!L:L,"EXECUTED")');
+  sheet.getRange('A12').setValue('총 기회 감지');
+  sheet.getRange('B12').setFormula('=COUNTIF(Trade_Log!L:L,"OPPORTUNITY_DETECTED")');
 
-  sheet.getRange('A5').setValue('실행률');
-  sheet.getRange('B5').setFormula('=IFERROR(B4/B3,0)');
-  sheet.getRange('B5').setNumberFormat('0.00%');
+  sheet.getRange('A13').setValue('총 실행 횟수');
+  sheet.getRange('B13').setFormula('=COUNTIF(Trade_Log!L:L,"EXECUTED")');
 
-  sheet.getRange('A6').setValue('누적 추정 수익 (TUSD)');
-  sheet.getRange('B6').setFormula('=SUMIF(Trade_Log!L:L,"EXECUTED",Trade_Log!M:M)');
+  sheet.getRange('A14').setValue('실행률');
+  sheet.getRange('B14').setFormula('=IFERROR(B13/B12,0)');
+  sheet.getRange('B14').setNumberFormat('0.00%');
 
-  sheet.getRange('A7').setValue('마지막 실행');
-  sheet.getRange('B7').setFormula('=MAXIFS(Trade_Log!A:A,Trade_Log!L:L,"EXECUTED")');
-  sheet.getRange('B7').setNumberFormat('yyyy-MM-dd HH:mm');
+  sheet.getRange('A15').setValue('누적 추정 수익 (TUSD)');
+  sheet.getRange('B15').setFormula('=SUMIF(Trade_Log!L:L,"EXECUTED",Trade_Log!M:M)');
+
+  sheet.getRange('A16').setValue('마지막 실행');
+  sheet.getRange('B16').setFormula('=MAXIFS(Trade_Log!A:A,Trade_Log!L:L,"EXECUTED")');
+  sheet.getRange('B16').setNumberFormat('yyyy-MM-dd HH:mm');
 
   // ── 섹션 2: 페어별 성과 ──────────────────────────────────────────
-  sheet.getRange('A10').setValue('페어별 성과');
-  sheet.getRange('A11').setFormula(
+  sheet.getRange('A19').setValue('페어별 성과');
+  sheet.getRange('A20').setFormula(
     "=QUERY(Trade_Log!A:N," +
     "\"SELECT B, COUNTIF(L,'OPPORTUNITY_DETECTED'), COUNTIF(L,'EXECUTED'), SUM(M) " +
     "WHERE L='OPPORTUNITY_DETECTED' OR L='EXECUTED' " +
@@ -314,8 +327,8 @@ function createPortfolioTab() {
   );
 
   // ── 섹션 3: 최근 실행 내역 ──────────────────────────────────────
-  sheet.getRange('A20').setValue('최근 실행 내역');
-  sheet.getRange('A21').setFormula(
+  sheet.getRange('A29').setValue('최근 실행 내역');
+  sheet.getRange('A30').setFormula(
     "=QUERY(Trade_Log!A:N," +
     "\"SELECT A,B,C,F,H,J,K,N " +
     "WHERE L='EXECUTED' " +
