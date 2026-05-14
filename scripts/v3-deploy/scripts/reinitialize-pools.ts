@@ -4,6 +4,7 @@ import * as path from 'path'
 
 // ── 주소 상수 ─────────────────────────────────────────────────────────────────
 const POSITION_MANAGER = '0x245a9b3937b28cfAE315D9E498ae46A758652Ad1'
+const SWAP_ROUTER      = '0x8920e24184Ae7a1D55d64ef42f319139E9A72885'
 const OWNER            = '0x069331CB8ADC2E376f0A2F8a6CDDee4f021e07cD'
 
 const TOKEN = {
@@ -14,87 +15,79 @@ const TOKEN = {
 } as const
 
 // ── 풀 설정 ───────────────────────────────────────────────────────────────────
-// 실환율 2026-05-14 기준
-// USDKRW 1495, USDJPY 157.8, USDEUR 1.171, KRWJPY 0.1055
+// 실환율 2026-05-14 기준: USDKRW 1495, USDJPY 157.8, USDEUR 1.171, KRWJPY 0.1055
 //
-// price = token1 / token0 (token0 < token1 주소 기준)
-// token0IsBase=true  → price = token0 기준 token1 단가
-// token0IsBase=false → price = token1 기준 token0 단가 (역수)
+// price = token1 / token0  (token0 < token1 주소 오름차순)
+// token ordering (주소 hex 오름차순):
+//   TKRW(0x244e) < TUSD(0x6e13) < TEUR(0xe7b1) < TJPY(0xe9a2)
 //
-// 각 풀 token0/token1 ordering은 주소 크기 비교로 결정됨:
-//   TKRW(0x244e) < TUSD(0x6e13) → TKRW=token0, TUSD=token1
-//   TUSD(0x6e13) < TJPY(0xe9a2) → TUSD=token0, TJPY=token1
-//   TUSD(0x6e13) < TEUR(0xe7b1) → TUSD=token0, TEUR=token1
-//   TKRW(0x244e) < TJPY(0xe9a2) → TKRW=token0, TJPY=token1
+//   TKRW/TUSD → token0=TKRW, token1=TUSD, price = TUSD/TKRW = 1/1495
+//   TUSD/TJPY → token0=TUSD, token1=TJPY, price = TJPY/TUSD = 157.8
+//   TUSD/TEUR → token0=TUSD, token1=TEUR, price = TEUR/TUSD = 1/1.171
+//   TKRW/TJPY → token0=TKRW, token1=TJPY, price = TJPY/TKRW = 0.1055
 
 interface PoolConfig {
-  address:      string
-  tokenId:      number        // 회수할 NonfungiblePositionManager tokenId
-  token0:       string        // 주소 작은 쪽
-  token1:       string        // 주소 큰 쪽
-  fee:          number        // 500 (0.05%)
-  // price = token1/token0 (18 decimals 기준 raw 비율)
-  // 예: TKRW/TUSD 풀 → price = TUSD per TKRW = 1/1495
-  price:        number
-  // 유동성 공급 범위 (±N% → tickLower/tickUpper 계산)
-  rangePct:     number
-  // 각 토큰 공급량 (단위: 해당 토큰)
-  amount0:      bigint
-  amount1:      bigint
+  address:   string
+  tokenId:   number    // 기존 NonfungiblePositionManager tokenId (회수 대상)
+  token0:    string    // 주소 작은 쪽
+  token1:    string    // 주소 큰 쪽
+  fee:       number    // 500 (0.05%)
+  price:     number    // token1/token0 (18 decimals 동일 기준)
+  rangePct:  number    // ±% tick 범위
+  amount0:   bigint    // 최종 mint 시 공급량
+  amount1:   bigint
 }
+
+const TICK_SPACING = 10  // fee=500 풀
 
 const POOLS: PoolConfig[] = [
   {
-    // TKRW/TUSD — token0=TKRW, token1=TUSD
-    // price = TUSD per TKRW = 1/1495 ≈ 0.0006689
+    // TKRW/TUSD — price = TUSD per TKRW = 1/1495 ≈ 0.0006689
     address:  '0x1DE1642256DD4F479C60975C0F12a861DF499b1e',
     tokenId:  1,
     token0:   TOKEN.TKRW,
     token1:   TOKEN.TUSD,
     fee:      500,
     price:    1 / 1495,
-    rangePct: 20,
-    amount0:  ethers.parseUnits('14900000', 18),   // 14.9M TKRW (~$10k)
-    amount1:  ethers.parseUnits('9970',     18),   // ~$10k TUSD
+    rangePct: 10,
+    amount0:  ethers.parseUnits('14900000', 18),  // 14.9M TKRW (~$10k)
+    amount1:  ethers.parseUnits('9970',     18),  // ~$10k TUSD
   },
   {
-    // TUSD/TJPY — token0=TUSD, token1=TJPY
-    // price = TJPY per TUSD = 157.8
+    // TUSD/TJPY — price = TJPY per TUSD = 157.8
     address:  '0x789C1b717d9291781256472Ccf6Fe3d04208DB35',
     tokenId:  2,
     token0:   TOKEN.TUSD,
     token1:   TOKEN.TJPY,
     fee:      500,
     price:    157.8,
-    rangePct: 20,
-    amount0:  ethers.parseUnits('9970',      18),  // ~$10k TUSD
-    amount1:  ethers.parseUnits('1573266',   18),  // ~$10k TJPY
+    rangePct: 10,
+    amount0:  ethers.parseUnits('9970',    18),  // ~$10k TUSD
+    amount1:  ethers.parseUnits('1573266', 18),  // ~$10k TJPY
   },
   {
-    // TUSD/TEUR — token0=TUSD, token1=TEUR
-    // price = TEUR per TUSD = 1/1.171 ≈ 0.8540
+    // TUSD/TEUR — price = TEUR per TUSD = 1/1.171 ≈ 0.8540
     address:  '0xc98A7B66C51276E94D686a4e4C808ebb26Df6b76',
     tokenId:  3,
     token0:   TOKEN.TUSD,
     token1:   TOKEN.TEUR,
     fee:      500,
     price:    1 / 1.171,
-    rangePct: 20,
-    amount0:  ethers.parseUnits('9970',  18),      // ~$10k TUSD
-    amount1:  ethers.parseUnits('8514',  18),      // ~$10k TEUR
+    rangePct: 10,
+    amount0:  ethers.parseUnits('9970', 18),  // ~$10k TUSD
+    amount1:  ethers.parseUnits('8514', 18),  // ~$10k TEUR
   },
   {
-    // TKRW/TJPY — token0=TKRW, token1=TJPY
-    // price = TJPY per TKRW = 0.1055
+    // TKRW/TJPY — price = TJPY per TKRW = 0.1055
     address:  '0xB7E99f032Ac4e24fd7B8E4330f1E9CECe207ceaA',
     tokenId:  4,
     token0:   TOKEN.TKRW,
     token1:   TOKEN.TJPY,
     fee:      500,
     price:    0.1055,
-    rangePct: 20,
-    amount0:  ethers.parseUnits('14900000', 18),   // ~$10k 상당 TKRW
-    amount1:  ethers.parseUnits('1571950',  18),   // ~$10k 상당 TJPY
+    rangePct: 10,
+    amount0:  ethers.parseUnits('14900000', 18),  // ~$10k 상당 TKRW
+    amount1:  ethers.parseUnits('1571950',  18),  // ~$10k 상당 TJPY
   },
 ]
 
@@ -107,30 +100,34 @@ function loadAbi(file: string): ethers.InterfaceAbi {
   ) as ethers.InterfaceAbi
 }
 
-const POOL_ABI = loadAbi('abi_v3pool.json')
-const PM_ABI   = loadAbi('abi_positionmanager.json')
+const POOL_ABI   = loadAbi('abi_v3pool.json')
+const PM_ABI     = loadAbi('abi_positionmanager.json')
+const ROUTER_ABI = loadAbi('abi_swaprouter.json')
 
-// ── sqrtPriceX96 계산 ────────────────────────────────────────────────────────
-// price = token1/token0 (양쪽 모두 18 decimals이므로 raw 비율 그대로)
-// sqrtPriceX96 = sqrt(price) * 2^96
+// ── 수학 헬퍼 ─────────────────────────────────────────────────────────────────
+// sqrtPriceX96 = sqrt(price) * 2^96   (price = token1/token0, 동일 decimals)
 function priceToSqrtPriceX96(price: number): bigint {
   const sqrtPrice = Math.sqrt(price)
-  const Q96 = 2n ** 96n
-  // 정밀도 보존을 위해 1e18 스케일 후 정수 계산
-  const SCALE = BigInt(1e18)
+  const Q96       = 2n ** 96n
+  const SCALE     = BigInt(1e18)
   const sqrtScaled = BigInt(Math.round(sqrtPrice * 1e18))
   return (sqrtScaled * Q96) / SCALE
 }
 
-// ── tick 계산 ─────────────────────────────────────────────────────────────────
-// tick = floor(log(price) / log(1.0001))
-// tickSpacing=10 (fee=500)
+// sqrtPriceX96 → price
+function sqrtPriceX96ToPrice(sqrtPriceX96: bigint): number {
+  const Q96   = 2n ** 96n
+  const SCALE = BigInt(1e12)
+  return Number(sqrtPriceX96 * sqrtPriceX96 * SCALE / (Q96 * Q96)) / 1e12
+}
+
+// price → tick (floor)
 function priceToTick(price: number): number {
   return Math.floor(Math.log(price) / Math.log(1.0001))
 }
 
-function roundTickToSpacing(tick: number, tickSpacing: number): number {
-  return Math.round(tick / tickSpacing) * tickSpacing
+function roundTick(tick: number, spacing: number): number {
+  return Math.round(tick / spacing) * spacing
 }
 
 // ── 재시도 래퍼 ──────────────────────────────────────────────────────────────
@@ -148,123 +145,291 @@ async function withRetry<T>(fn: () => Promise<T>, label: string, retries = 3): P
   throw new Error('unreachable')
 }
 
-// ── ERC20 approve ─────────────────────────────────────────────────────────────
+// ── ERC20 헬퍼 ───────────────────────────────────────────────────────────────
 const ERC20_ABI = [
   'function approve(address spender, uint256 amount) returns (bool)',
   'function allowance(address owner, address spender) view returns (uint256)',
   'function balanceOf(address account) view returns (uint256)',
-  'function decimals() view returns (uint8)',
-  'function symbol() view returns (string)',
 ]
 
 async function ensureApprove(
-  tokenAddress: string,
+  tokenAddr: string,
   spender: string,
   amount: bigint,
   signer: ethers.Signer
 ) {
-  const token     = new ethers.Contract(tokenAddress, ERC20_ABI, signer)
+  const token     = new ethers.Contract(tokenAddr, ERC20_ABI, signer)
   const owner     = await signer.getAddress()
   const allowance = await token.allowance(owner, spender) as bigint
   if (allowance < amount) {
-    console.log(`    approve ${tokenAddress.slice(0, 10)}... → ${spender.slice(0, 10)}...`)
+    console.log(`    approve ${tokenAddr.slice(0, 10)}...`)
     const tx = await token.approve(spender, ethers.MaxUint256)
     await tx.wait()
   }
 }
 
-// ── 포지션 회수 ───────────────────────────────────────────────────────────────
+async function getBalance(tokenAddr: string, owner: string, signer: ethers.Signer): Promise<bigint> {
+  const token = new ethers.Contract(tokenAddr, ERC20_ABI, signer)
+  return await token.balanceOf(owner) as bigint
+}
+
+// ── ① 유동성 전량 회수 ────────────────────────────────────────────────────────
 async function withdrawPosition(
   pm: ethers.Contract,
-  pool: ethers.Contract,
   cfg: PoolConfig,
   signer: ethers.Signer
-) {
+): Promise<{ hadLiquidity: boolean }> {
   const owner = await signer.getAddress()
-  console.log(`\n[tokenId ${cfg.tokenId}] 포지션 회수 시작`)
+  console.log(`\n[Step 1] tokenId=${cfg.tokenId} 유동성 회수`)
 
-  // 1. positions() 로 현재 유동성 / tickRange 조회
-  const pos = await pm.positions(cfg.tokenId) as {
-    liquidity: bigint
-    tickLower: bigint
-    tickUpper: bigint
-    tokensOwed0: bigint
-    tokensOwed1: bigint
-  }
-
+  const pos = await pm.positions(cfg.tokenId) as { liquidity: bigint; tickLower: bigint; tickUpper: bigint }
   console.log(`  liquidity : ${pos.liquidity}`)
   console.log(`  tickRange : [${pos.tickLower}, ${pos.tickUpper}]`)
 
-  if (pos.liquidity === 0n) {
-    console.log(`  ⚠️  유동성 없음 — decreaseLiquidity 스킵`)
-  } else {
-    // 2. decreaseLiquidity (전량)
+  const hadLiquidity = pos.liquidity > 0n
+
+  if (hadLiquidity) {
     const deadline = BigInt(Math.floor(Date.now() / 1000) + 1800)
-    const decreaseTx = await withRetry(
+    const tx1 = await withRetry(
       () => pm.decreaseLiquidity({
-        tokenId:          cfg.tokenId,
-        liquidity:        pos.liquidity,
-        amount0Min:       0n,
-        amount1Min:       0n,
+        tokenId:    cfg.tokenId,
+        liquidity:  pos.liquidity,
+        amount0Min: 0n,
+        amount1Min: 0n,
         deadline,
       }),
-      `decreaseLiquidity tokenId=${cfg.tokenId}`
+      `decreaseLiquidity ${cfg.tokenId}`
     )
-    const r1 = await decreaseTx.wait()
-    console.log(`  ✓ decreaseLiquidity tx: ${r1.hash}`)
-  }
-
-  // 3. collect (수수료 + 회수된 토큰 전량)
-  const MAX_UINT128 = (1n << 128n) - 1n
-  const collectTx = await withRetry(
-    () => pm.collect({
-      tokenId:          cfg.tokenId,
-      recipient:        owner,
-      amount0Max:       MAX_UINT128,
-      amount1Max:       MAX_UINT128,
-    }),
-    `collect tokenId=${cfg.tokenId}`
-  )
-  const r2 = await collectTx.wait()
-  console.log(`  ✓ collect tx: ${r2.hash}`)
-
-  // 4. burn NFT (선택 — 풀 재사용 시 생략 가능, 여기서는 실행)
-  const burnTx = await withRetry(
-    () => pm.burn(cfg.tokenId),
-    `burn tokenId=${cfg.tokenId}`
-  )
-  const r3 = await burnTx.wait()
-  console.log(`  ✓ burn tx: ${r3.hash}`)
-}
-
-// ── 풀 가격 재초기화 ──────────────────────────────────────────────────────────
-// V3 풀은 한 번 initialize된 후 재초기화 불가.
-// 대신 swap으로 가격을 맞추거나, 새 풀을 배포해야 함.
-// 여기서는 현재 풀 가격과 목표 가격을 비교해 경고만 출력.
-// 실제 가격 조정은 스왑 또는 풀 재배포 중 선택 필요.
-async function checkAndWarnPoolPrice(
-  pool: ethers.Contract,
-  cfg: PoolConfig
-) {
-  const slot0 = await pool.slot0() as { sqrtPriceX96: bigint; tick: bigint }
-  const Q96   = 2n ** 96n
-  const SCALE = BigInt(1e12)
-  const currentPrice = Number(slot0.sqrtPriceX96 * slot0.sqrtPriceX96 * SCALE / (Q96 * Q96)) / 1e12
-  const targetPrice  = cfg.price
-
-  console.log(`  현재 pool price : ${currentPrice.toFixed(8)}`)
-  console.log(`  목표 pool price : ${targetPrice.toFixed(8)}`)
-  console.log(`  현재 tick       : ${slot0.tick}`)
-
-  const diff = Math.abs(currentPrice - targetPrice) / targetPrice
-  if (diff > 0.01) {
-    console.warn(`  ⚠️  가격 괴리 ${(diff * 100).toFixed(2)}% — 스왑으로 가격 조정 필요`)
+    const r1 = await tx1.wait()
+    console.log(`  ✓ decreaseLiquidity: ${r1.hash}`)
   } else {
-    console.log(`  ✓ 가격 오차 ${(diff * 100).toFixed(4)}% — 허용 범위 내`)
+    console.log(`  유동성 없음 — decreaseLiquidity 스킵`)
+  }
+
+  // tokensOwed가 있으면 collect
+  const MAX128 = (1n << 128n) - 1n
+  const tx2 = await withRetry(
+    () => pm.collect({
+      tokenId:   cfg.tokenId,
+      recipient: owner,
+      amount0Max: MAX128,
+      amount1Max: MAX128,
+    }),
+    `collect ${cfg.tokenId}`
+  )
+  const r2 = await tx2.wait()
+  console.log(`  ✓ collect: ${r2.hash}`)
+
+  // NFT burn
+  const tx3 = await withRetry(() => pm.burn(cfg.tokenId), `burn ${cfg.tokenId}`)
+  const r3 = await tx3.wait()
+  console.log(`  ✓ burn: ${r3.hash}`)
+
+  return { hadLiquidity }
+}
+
+// ── ② 풀 가격 조정 (스왑) ────────────────────────────────────────────────────
+// 유동성이 0인 상태에서는 스왑 불가.
+// → 소량 seed 유동성 추가 → 스왑 → seed 유동성 제거 → 본 mint
+async function adjustPoolPrice(
+  pm: ethers.Contract,
+  pool: ethers.Contract,
+  router: ethers.Contract,
+  cfg: PoolConfig,
+  signer: ethers.Signer
+): Promise<void> {
+  const owner = await signer.getAddress()
+
+  // 현재 가격 읽기
+  const slot0 = await pool.slot0() as { sqrtPriceX96: bigint; tick: bigint; liquidity: bigint }
+  const currentPrice = sqrtPriceX96ToPrice(slot0.sqrtPriceX96)
+  const targetPrice  = cfg.price
+  const diffPct      = Math.abs(currentPrice - targetPrice) / targetPrice * 100
+
+  console.log(`\n[Step 2] 풀 가격 조정`)
+  console.log(`  현재 price : ${currentPrice.toFixed(8)}  tick=${slot0.tick}`)
+  console.log(`  목표 price : ${targetPrice.toFixed(8)}`)
+  console.log(`  괴리율     : ${diffPct.toFixed(3)}%`)
+
+  if (diffPct < 0.5) {
+    console.log(`  ✓ 괴리율 허용 범위 내 — 스왑 스킵`)
+    return
+  }
+
+  // 현재 풀 전체 유동성 확인
+  const poolLiquidity = await pool.liquidity() as bigint
+  console.log(`  풀 유동성  : ${poolLiquidity}`)
+
+  let seedTokenId: bigint | null = null
+
+  if (poolLiquidity === 0n) {
+    // 유동성이 없으면 스왑 불가 → 소량 seed 유동성 추가
+    console.log(`  유동성 없음 — seed 유동성 추가 후 스왑`)
+    seedTokenId = await mintSeed(pm, cfg, signer)
+  }
+
+  // 스왑 방향 결정:
+  //   currentPrice < targetPrice → token1 상대적으로 비싸야 하므로 token0→token1 스왑
+  //     (token0 팔면 token1 가격 올라감, zeroForOne=true)
+  //   currentPrice > targetPrice → 반대, zeroForOne=false
+  const zeroForOne = currentPrice < targetPrice
+
+  // 스왑할 amountIn: 목표 가격 이동에 필요한 수량을 보수적으로 산정
+  // price 이동 비율에 비례하여 풀 깊이의 일정 배수를 투입
+  // 단, 유동성 없는 상태에서 seed만 있을 경우 seed량의 80% 투입
+  const SWAP_SCALE = 5n   // 목표 달성 여유분 (실제 이동량 < 투입량이므로 넉넉하게)
+  let amountIn: bigint
+
+  if (zeroForOne) {
+    // token0 → token1: token0 잔액의 일부 사용
+    const bal = await getBalance(cfg.token0, owner, signer)
+    amountIn = bal / 2n
+  } else {
+    // token1 → token0: token1 잔액의 일부 사용
+    const bal = await getBalance(cfg.token1, owner, signer)
+    amountIn = bal / 2n
+  }
+
+  if (amountIn === 0n) {
+    console.warn(`  ⚠️  스왑용 잔액 없음 — 스왑 스킵`)
+  } else {
+    const tokenIn  = zeroForOne ? cfg.token0 : cfg.token1
+    const tokenOut = zeroForOne ? cfg.token1 : cfg.token0
+
+    // sqrtPriceLimitX96: 스왑이 목표 가격에 도달하면 멈추도록 설정
+    const sqrtPriceLimit = priceToSqrtPriceX96(targetPrice)
+
+    await ensureApprove(tokenIn, await router.getAddress(), amountIn * SWAP_SCALE, signer)
+
+    console.log(`  스왑: ${zeroForOne ? 'token0→token1' : 'token1→token0'}  amountIn=${ethers.formatUnits(amountIn, 18)}`)
+
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 1800)
+    const swapTx = await withRetry(
+      () => router.exactInputSingle({
+        tokenIn,
+        tokenOut,
+        fee:               cfg.fee,
+        recipient:         owner,
+        deadline,
+        amountIn,
+        amountOutMinimum:  0n,
+        sqrtPriceLimitX96: sqrtPriceLimit,
+      }),
+      `swap ${cfg.address.slice(0, 10)}`
+    )
+    const swapR = await swapTx.wait()
+    console.log(`  ✓ swap: ${swapR.hash}`)
+
+    // 스왑 후 가격 확인
+    const slot0After = await pool.slot0() as { sqrtPriceX96: bigint; tick: bigint }
+    const priceAfter = sqrtPriceX96ToPrice(slot0After.sqrtPriceX96)
+    const diffAfter  = Math.abs(priceAfter - targetPrice) / targetPrice * 100
+    console.log(`  스왑 후 price : ${priceAfter.toFixed(8)}  tick=${slot0After.tick}  괴리=${diffAfter.toFixed(3)}%`)
+  }
+
+  // seed 유동성 제거
+  if (seedTokenId !== null) {
+    await removeSeed(pm, seedTokenId, owner)
   }
 }
 
-// ── 유동성 재공급 (mint) ──────────────────────────────────────────────────────
+// ── seed 유동성 추가 (스왑 가능하게 최소 유동성 확보) ──────────────────────────
+async function mintSeed(
+  pm: ethers.Contract,
+  cfg: PoolConfig,
+  signer: ethers.Signer
+): Promise<bigint> {
+  const owner = await signer.getAddress()
+
+  // 목표 가격 기준 ±50% 넓은 범위로 seed 추가 (스왑 시 가격 이동 공간 확보)
+  const seedRangePct = 50
+  const lowerPrice   = cfg.price * (1 - seedRangePct / 100)
+  const upperPrice   = cfg.price * (1 + seedRangePct / 100)
+  const tickLower    = roundTick(priceToTick(lowerPrice), TICK_SPACING)
+  const tickUpper    = roundTick(priceToTick(upperPrice), TICK_SPACING)
+
+  // seed 수량: 본 mint의 1%
+  const seed0 = cfg.amount0 / 100n
+  const seed1 = cfg.amount1 / 100n
+
+  console.log(`  [seed mint] tickRange=[${tickLower}, ${tickUpper}]  seed0=${ethers.formatUnits(seed0, 18)}  seed1=${ethers.formatUnits(seed1, 18)}`)
+
+  await ensureApprove(cfg.token0, await pm.getAddress(), seed0, signer)
+  await ensureApprove(cfg.token1, await pm.getAddress(), seed1, signer)
+
+  const deadline = BigInt(Math.floor(Date.now() / 1000) + 1800)
+  const tx = await withRetry(
+    () => pm.mint({
+      token0:         cfg.token0,
+      token1:         cfg.token1,
+      fee:            cfg.fee,
+      tickLower,
+      tickUpper,
+      amount0Desired: seed0,
+      amount1Desired: seed1,
+      amount0Min:     0n,
+      amount1Min:     0n,
+      recipient:      owner,
+      deadline,
+    }),
+    `seed mint ${cfg.address.slice(0, 10)}`
+  )
+  const receipt = await tx.wait()
+  console.log(`  ✓ seed mint: ${receipt.hash}`)
+
+  const iface  = pm.interface
+  const mintLog = receipt.logs
+    .map((log: ethers.Log) => { try { return iface.parseLog(log) } catch { return null } })
+    .find((e: ethers.LogDescription | null) => e?.name === 'IncreaseLiquidity')
+
+  if (!mintLog) throw new Error('seed IncreaseLiquidity 이벤트 없음')
+  console.log(`  seed tokenId=${mintLog.args.tokenId}`)
+  return mintLog.args.tokenId as bigint
+}
+
+// ── seed 유동성 제거 ──────────────────────────────────────────────────────────
+async function removeSeed(
+  pm: ethers.Contract,
+  seedTokenId: bigint,
+  owner: string
+): Promise<void> {
+  console.log(`  [seed remove] tokenId=${seedTokenId}`)
+
+  const pos = await pm.positions(seedTokenId) as { liquidity: bigint }
+
+  if (pos.liquidity > 0n) {
+    const deadline = BigInt(Math.floor(Date.now() / 1000) + 1800)
+    const tx1 = await withRetry(
+      () => pm.decreaseLiquidity({
+        tokenId:    seedTokenId,
+        liquidity:  pos.liquidity,
+        amount0Min: 0n,
+        amount1Min: 0n,
+        deadline,
+      }),
+      `seed decreaseLiquidity`
+    )
+    await tx1.wait()
+  }
+
+  const MAX128 = (1n << 128n) - 1n
+  const tx2 = await withRetry(
+    () => pm.collect({
+      tokenId:    seedTokenId,
+      recipient:  owner,
+      amount0Max: MAX128,
+      amount1Max: MAX128,
+    }),
+    `seed collect`
+  )
+  await tx2.wait()
+
+  const tx3 = await withRetry(() => pm.burn(seedTokenId), `seed burn`)
+  await tx3.wait()
+  console.log(`  ✓ seed 제거 완료`)
+}
+
+// ── ③ 본 유동성 mint ──────────────────────────────────────────────────────────
 async function mintPosition(
   pm: ethers.Contract,
   cfg: PoolConfig,
@@ -272,26 +437,22 @@ async function mintPosition(
 ): Promise<{ tokenId: bigint; liquidity: bigint; amount0: bigint; amount1: bigint }> {
   const owner = await signer.getAddress()
 
-  const TICK_SPACING = 10  // fee=500 풀의 tickSpacing
+  const lowerPrice = cfg.price * (1 - cfg.rangePct / 100)
+  const upperPrice = cfg.price * (1 + cfg.rangePct / 100)
+  const tickLower  = roundTick(priceToTick(lowerPrice), TICK_SPACING)
+  const tickUpper  = roundTick(priceToTick(upperPrice), TICK_SPACING)
+  const tickCenter = priceToTick(cfg.price)
 
-  const currentTick  = priceToTick(cfg.price)
-  const lowerPrice   = cfg.price * (1 - cfg.rangePct / 100)
-  const upperPrice   = cfg.price * (1 + cfg.rangePct / 100)
-  const tickLower    = roundTickToSpacing(priceToTick(lowerPrice), TICK_SPACING)
-  const tickUpper    = roundTickToSpacing(priceToTick(upperPrice), TICK_SPACING)
-
-  console.log(`\n[mint] ${cfg.address.slice(0, 10)}...`)
+  console.log(`\n[Step 3] 유동성 mint`)
   console.log(`  price     : ${cfg.price}`)
-  console.log(`  tickLower : ${tickLower}  tickCurrent: ${currentTick}  tickUpper: ${tickUpper}`)
+  console.log(`  tickRange : [${tickLower}, ${tickCenter}, ${tickUpper}]`)
   console.log(`  amount0   : ${ethers.formatUnits(cfg.amount0, 18)}`)
   console.log(`  amount1   : ${ethers.formatUnits(cfg.amount1, 18)}`)
 
-  // approve
   await ensureApprove(cfg.token0, await pm.getAddress(), cfg.amount0, signer)
   await ensureApprove(cfg.token1, await pm.getAddress(), cfg.amount1, signer)
 
   const deadline = BigInt(Math.floor(Date.now() / 1000) + 1800)
-
   const tx = await withRetry(
     () => pm.mint({
       token0:         cfg.token0,
@@ -309,24 +470,22 @@ async function mintPosition(
     `mint ${cfg.address.slice(0, 10)}`
   )
   const receipt = await tx.wait()
-  console.log(`  ✓ mint tx: ${receipt.hash}`)
+  console.log(`  ✓ mint: ${receipt.hash}`)
 
-  // IncreaseLiquidity 이벤트에서 tokenId 파싱
-  const iface    = pm.interface
-  const mintLog  = receipt.logs
+  const iface   = pm.interface
+  const mintLog = receipt.logs
     .map((log: ethers.Log) => { try { return iface.parseLog(log) } catch { return null } })
     .find((e: ethers.LogDescription | null) => e?.name === 'IncreaseLiquidity')
 
-  if (mintLog) {
-    const { tokenId, liquidity, amount0, amount1 } = mintLog.args
-    console.log(`  tokenId   : ${tokenId}`)
-    console.log(`  liquidity : ${liquidity}`)
-    console.log(`  amount0   : ${ethers.formatUnits(amount0, 18)}`)
-    console.log(`  amount1   : ${ethers.formatUnits(amount1, 18)}`)
-    return { tokenId, liquidity, amount0, amount1 }
-  }
+  if (!mintLog) throw new Error('IncreaseLiquidity 이벤트 없음')
 
-  throw new Error('IncreaseLiquidity 이벤트를 찾을 수 없음')
+  const { tokenId, liquidity, amount0, amount1 } = mintLog.args
+  console.log(`  tokenId   : ${tokenId}`)
+  console.log(`  liquidity : ${liquidity}`)
+  console.log(`  amount0   : ${ethers.formatUnits(amount0, 18)}`)
+  console.log(`  amount1   : ${ethers.formatUnits(amount1, 18)}`)
+
+  return { tokenId, liquidity, amount0, amount1 }
 }
 
 // ── 메인 ─────────────────────────────────────────────────────────────────────
@@ -345,52 +504,54 @@ async function main() {
     throw new Error(`서명자(${signerAddress})가 오너(${OWNER})와 다릅니다`)
   }
 
-  const pm = new ethers.Contract(POSITION_MANAGER, PM_ABI, signer)
+  const pm     = new ethers.Contract(POSITION_MANAGER, PM_ABI,     signer)
+  const router = new ethers.Contract(SWAP_ROUTER,      ROUTER_ABI, signer)
 
   const results: Array<{
-    pool: string
-    newTokenId: bigint
-    liquidity: bigint
-    amount0: bigint
-    amount1: bigint
+    pool:       string
+    newTokenId: string
+    liquidity:  string
+    amount0:    string
+    amount1:    string
   }> = []
 
   for (const cfg of POOLS) {
-    console.log('\n' + '─'.repeat(56))
+    console.log('\n' + '═'.repeat(56))
     console.log(`풀: ${cfg.address}`)
+    console.log(`목표 price (token1/token0): ${cfg.price}`)
 
     const pool = new ethers.Contract(cfg.address, POOL_ABI, signer)
 
-    // ① 기존 포지션 전량 회수
-    await withdrawPosition(pm, pool, cfg, signer)
+    // ① 기존 유동성 전량 회수 (decreaseLiquidity → collect → burn)
+    await withdrawPosition(pm, cfg, signer)
 
-    // ② 현재 풀 가격 확인 (V3 풀은 재초기화 불가이므로 경고 출력)
-    await checkAndWarnPoolPrice(pool, cfg)
+    // ② 스왑으로 풀 가격을 목표 환율로 이동
+    //    유동성 0이면 seed mint → swap → seed remove 순으로 처리
+    await adjustPoolPrice(pm, pool, router, cfg, signer)
 
-    // ③ 새 가격 범위로 유동성 재공급
+    // ③ 새 환율 기준 ±rangePct% 범위로 본 유동성 mint
     const mintResult = await mintPosition(pm, cfg, signer)
-    results.push({ pool: cfg.address, ...mintResult })
+
+    results.push({
+      pool:       cfg.address,
+      newTokenId: mintResult.tokenId.toString(),
+      liquidity:  mintResult.liquidity.toString(),
+      amount0:    ethers.formatUnits(mintResult.amount0, 18),
+      amount1:    ethers.formatUnits(mintResult.amount1, 18),
+    })
   }
 
   // ── 결과 요약 ─────────────────────────────────────────────────────────────
   console.log('\n' + '═'.repeat(56))
   console.log('  ✓ v0.2 풀 재초기화 완료')
   console.log('═'.repeat(56))
-  const summary = results.map(r => ({
-    pool:       r.pool,
-    newTokenId: r.newTokenId.toString(),
-    liquidity:  r.liquidity.toString(),
-    amount0:    ethers.formatUnits(r.amount0, 18),
-    amount1:    ethers.formatUnits(r.amount1, 18),
-  }))
-  console.log(JSON.stringify(summary, null, 2))
+  console.log(JSON.stringify(results, null, 2))
 
-  // 결과 파일 저장
   const outPath = path.join(__dirname, '..', 'reinitialize-result.json')
   fs.writeFileSync(outPath, JSON.stringify({
     reinitializedAt: new Date().toISOString(),
     rates: { USDKRW: 1495, USDJPY: 157.8, USDEUR: 1.171, KRWJPY: 0.1055 },
-    positions: summary,
+    positions: results,
   }, null, 2))
   console.log(`\n결과 저장: scripts/v3-deploy/reinitialize-result.json`)
 }
