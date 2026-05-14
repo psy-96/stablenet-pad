@@ -268,11 +268,13 @@ async function adjustPoolPrice(
     seedTokenId = await mintSeed(pm, cfg, signer)
   }
 
-  // 스왑 방향 결정:
-  //   currentPrice < targetPrice → token1 상대적으로 비싸야 하므로 token0→token1 스왑
-  //     (token0 팔면 token1 가격 올라감, zeroForOne=true)
-  //   currentPrice > targetPrice → 반대, zeroForOne=false
-  const zeroForOne = currentPrice < targetPrice
+  // 스왑 방향 결정 (price = token1/token0):
+  //   zeroForOne=true  (token0→token1): pool에 token0 유입 → token0 공급 ↑ → price(token1/token0) 하락
+  //   zeroForOne=false (token1→token0): pool에 token1 유입 → token1 공급 ↑ → price(token1/token0) 상승
+  //
+  //   currentPrice > targetPrice → price 낮춰야 함 → zeroForOne = true
+  //   currentPrice < targetPrice → price 높여야 함 → zeroForOne = false
+  const zeroForOne = currentPrice > targetPrice
 
   // 스왑할 amountIn: 목표 가격 이동에 필요한 수량을 보수적으로 산정
   // price 이동 비율에 비례하여 풀 깊이의 일정 배수를 투입
