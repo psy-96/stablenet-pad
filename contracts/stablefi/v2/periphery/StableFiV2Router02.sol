@@ -76,7 +76,7 @@ library StableFiV2Library {
             hex'ff',
             factory,
             keccak256(abi.encodePacked(token0, token1)),
-            hex'4c537bbb9708caa7dc2fa3085ee5980b7db976c8254aed5a105597c870064995' // keccak256(StableFiV2Pair.creationCode)
+            hex'69389ea2c9bb361720f73545dbc05ff2ef5707e5d188c4e6c297e7bea6d89f3e' // keccak256(StableFiV2Pair.creationCode)
         )))));
     }
 

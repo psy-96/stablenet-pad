@@ -1,12 +1,13 @@
 {
   "factory": "0xEf0C7E20fc70aCfB32C5D45C7c07FC82Ac00f2C8",
-  "router": "0xef861C89033aD6E0159A1C73aA9c6EA694Cb7561",
+  "router": "0x5c9D44DC9aE90548e55e0498BC4D14F2433Ca281",
   "WKRC": "0x0000000000000000000000000000000000001000",
   "factoryTxHash": "0x13a844a87fa20bd9c9a7911a5f30d9b13ed77c8612f71086d885602adf55cbcd",
-  "routerTxHash": "0x01a002311c8f198ebc25000968aaa9ec6b8998b73ade1c6568ceb242537dd70e",
+  "routerTxHash": "0xaca48ba06794dfa38ff77830f36f40170049f55f2ef875e12a149fb66cf58adf",
   "factoryBlock": 8818701,
-  "routerBlock": 8818703,
+  "routerBlock": 9141694,
   "deployer": "0x069331CB8ADC2E376f0A2F8a6CDDee4f021e07cD",
   "chainId": 8283,
-  "deployedAt": "2026-05-11T09:15:11.092Z"
+  "deployedAt": "2026-05-11T09:15:11.092Z",
+  "routerDeployedAt": "2026-05-15T02:58:22.683Z"
 }
